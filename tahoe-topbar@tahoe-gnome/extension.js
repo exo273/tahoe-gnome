@@ -254,6 +254,9 @@ export default class TahoeTopBarExtension extends Extension {
         Main.panel.addToStatusArea(APPLE_ROLE, this._appleButton, 0, 'left');
 
         this._appleButton.menu.actor.add_style_class_name('tahoe-apple-menu');
+        // Alinear el borde izquierdo del menú con el contenido del botón,
+        // en vez de centrar el menú bajo la manzana (que lo desplaza 18 px).
+        this._appleButton.menu.setSourceAlignment(0.0);
         this._buildMenu();
 
         this._appleButton.menu.connect('open-state-changed', (_menu, isOpen) => {
