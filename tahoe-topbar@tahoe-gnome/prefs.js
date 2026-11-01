@@ -124,6 +124,59 @@ const ABOUT_TEXT_FIELDS = [
     },
 ];
 
+
+const DEFAULT_CC_LAYOUT = [
+    {id: 'wifi', size: 'medium'},
+    {id: 'now-playing', size: 'large'},
+    {id: 'bluetooth', size: 'small'},
+    {id: 'airplane', size: 'small'},
+    {id: 'focus', size: 'medium'},
+    {id: 'dark-mode', size: 'small'},
+    {id: 'night-light', size: 'small'},
+    {id: 'display', size: 'wide'},
+    {id: 'sound', size: 'wide'},
+    {id: 'power-profile', size: 'small'},
+    {id: 'screenshot', size: 'small'},
+    {id: 'lock', size: 'small'},
+    {id: 'settings', size: 'small'},
+];
+
+const DEFAULT_MENUBAR_CONTROLS = ['battery', 'sound', 'wifi'];
+
+// Respaldo si el shell aún no ha publicado control-center-catalog (por
+// ejemplo, al abrir las preferencias antes de activar la extensión).
+const BUILTIN_CATALOG = [
+    {id: 'wifi', name: 'Wi‑Fi', category: 'Conectividad', icon: 'network-wireless-signal-good-symbolic', sizes: ['small', 'medium'], defaultSize: 'medium'},
+    {id: 'bluetooth', name: 'Bluetooth', category: 'Conectividad', icon: 'bluetooth-active-symbolic', sizes: ['small', 'medium'], defaultSize: 'small'},
+    {id: 'airplane', name: 'Modo avión', category: 'Conectividad', icon: 'airplane-mode-symbolic', sizes: ['small', 'medium'], defaultSize: 'small'},
+    {id: 'focus', name: 'Concentración', category: 'Concentración', icon: 'weather-clear-night-symbolic', sizes: ['small', 'medium'], defaultSize: 'medium'},
+    {id: 'dark-mode', name: 'Modo oscuro', category: 'Pantalla', icon: 'dark-mode-symbolic', sizes: ['small', 'medium'], defaultSize: 'small'},
+    {id: 'night-light', name: 'Luz nocturna', category: 'Pantalla', icon: 'night-light-symbolic', sizes: ['small', 'medium'], defaultSize: 'small'},
+    {id: 'display', name: 'Pantalla', category: 'Pantalla', icon: 'display-brightness-symbolic', sizes: ['wide'], defaultSize: 'wide'},
+    {id: 'keyboard-brightness', name: 'Brillo del teclado', category: 'Pantalla', icon: 'keyboard-brightness-high-symbolic', sizes: ['wide'], defaultSize: 'wide'},
+    {id: 'sound', name: 'Sonido', category: 'Sonido', icon: 'audio-volume-high-symbolic', sizes: ['wide'], defaultSize: 'wide'},
+    {id: 'now-playing', name: 'Reproduciendo', category: 'Utilidades', icon: 'media-playback-start-symbolic', sizes: ['large'], defaultSize: 'large'},
+    {id: 'power-profile', name: 'Perfil de energía', category: 'Batería', icon: 'power-profile-balanced-symbolic', sizes: ['small', 'medium'], defaultSize: 'small'},
+    {id: 'battery', name: 'Batería', category: 'Batería', icon: 'battery-good-symbolic', sizes: ['small', 'medium'], defaultSize: 'small'},
+    {id: 'screenshot', name: 'Captura de pantalla', category: 'Utilidades', icon: 'camera-photo-symbolic', sizes: ['small'], defaultSize: 'small'},
+    {id: 'screen-recording', name: 'Grabar pantalla', category: 'Utilidades', icon: 'camera-video-symbolic', sizes: ['small'], defaultSize: 'small'},
+    {id: 'lock', name: 'Bloquear', category: 'Utilidades', icon: 'changes-prevent-symbolic', sizes: ['small'], defaultSize: 'small'},
+    {id: 'settings', name: 'Ajustes', category: 'Utilidades', icon: 'org.gnome.Settings-symbolic', sizes: ['small'], defaultSize: 'small'},
+    {id: 'calculator', name: 'Calculadora', category: 'Utilidades', icon: 'accessories-calculator-symbolic', sizes: ['small', 'medium'], defaultSize: 'small'},
+];
+
+const CC_SIZES = ['small', 'medium', 'large', 'wide'];
+const CC_SIZE_LABELS = {
+    small: 'Pequeño',
+    medium: 'Mediano',
+    large: 'Grande',
+    wide: 'Ancho',
+};
+const CC_CATEGORY_ORDER = [
+    'Conectividad', 'Pantalla', 'Sonido', 'Concentración',
+    'Accesibilidad', 'Batería', 'Utilidades', 'Extensiones',
+];
+
 const DEFAULT_CLOCK_FORMAT = '%a %e %b  %H:%M';
 const IMAGE_MIME_TYPES = [
     'image/svg+xml',
@@ -143,6 +196,7 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         window.set_default_size(680, 760);
 
         window.add(this._buildBarPage(window, settings));
+        window.add(this._buildControlCenterPage(window, settings));
         window.add(this._buildGlassPage(window, settings));
         window.add(this._buildAboutMacPage(window, settings));
         window.add(this._buildAboutPage(window, settings));
@@ -376,7 +430,6 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         page.add(this._buildLogoGroup(window, settings));
         page.add(this._buildAppearanceGroup(settings));
         page.add(this._buildApplicationGroup(settings));
-        page.add(this._buildControlCenterGroup(settings));
         page.add(this._buildClockGroup(settings));
 
         return page;
@@ -726,6 +779,20 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         return group;
     }
 
+    _buildControlCenterPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: _('Centro de control'),
+            icon_name: 'preferences-system-symbolic',
+        });
+
+        page.add(this._buildControlCenterGroup(settings));
+        page.add(this._buildControlCenterLayoutGroup(settings, window));
+        page.add(this._buildMenubarControlsGroup(settings, window));
+        page.add(this._buildControlCenterResetGroup(window, settings));
+
+        return page;
+    }
+
     _buildControlCenterGroup(settings) {
         const group = new Adw.PreferencesGroup({
             title: _('Centro de control'),
@@ -747,20 +814,466 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
             'control-center-show-now-playing',
             _('Mostrar «Reproduciendo»'),
             _('Controles del reproductor multimedia activo (MPRIS).'));
-        const sound = this._switchRow(
-            settings,
-            'control-center-show-sound-icon',
-            _('Icono de sonido en la barra'),
-            _('Volumen y selección de salida con un clic; la rueda cambia el volumen.'));
         group.add(battery);
-        group.add(sound);
         group.add(media);
 
-        for (const row of [battery, sound, media]) {
+        for (const row of [battery, media]) {
             settings.bind('control-center-enabled', row, 'sensitive',
                 Gio.SettingsBindFlags.GET);
         }
 
+        return group;
+    }
+
+    // ------------------------------------------------------------------
+    // Editor accesible: layouts y barra
+    // ------------------------------------------------------------------
+
+    _parseJSONList(raw) {
+        try {
+            const value = JSON.parse(raw);
+            return Array.isArray(value) ? value : [];
+        } catch (_e) {
+            return [];
+        }
+    }
+
+    _catalog(settings) {
+        const list = this._parseJSONList(
+            settings.get_string('control-center-catalog'));
+        const catalog = list.length > 0 ? list : BUILTIN_CATALOG;
+        const byId = new Map();
+
+        for (const entry of catalog) {
+            if (entry?.id)
+                byId.set(entry.id, entry);
+        }
+        for (const entry of BUILTIN_CATALOG) {
+            if (!byId.has(entry.id))
+                byId.set(entry.id, entry);
+        }
+
+        return {catalog: [...byId.values()], byId};
+    }
+
+    _controlImage(icon, size = 22) {
+        const value = String(icon ?? '');
+        const image = (value.includes('/') || value.startsWith('file:'))
+            ? Gtk.Image.new_from_file(value.replace(/^file:\/\//, ''))
+            : Gtk.Image.new_from_icon_name(value || 'application-x-addon-symbolic');
+        image.set_pixel_size(size);
+        return image;
+    }
+
+    _readLayout(settings) {
+        const list = this._parseJSONList(
+            settings.get_string('control-center-layout'));
+        if (list.length === 0)
+            return DEFAULT_CC_LAYOUT.map(entry => ({...entry}));
+        return list;
+    }
+
+    _readMenubar(settings) {
+        const list = this._parseJSONList(
+            settings.get_string('menubar-controls'));
+        return list.length > 0 ? list : [...DEFAULT_MENUBAR_CONTROLS];
+    }
+
+    _saveLayout(settings, list) {
+        settings.set_string('control-center-layout',
+            JSON.stringify(list));
+    }
+
+    _saveMenubar(settings, list) {
+        settings.set_string('menubar-controls', JSON.stringify(list));
+    }
+
+    _buildControlCenterLayoutGroup(settings, window) {
+        const group = new Adw.PreferencesGroup({
+            title: _('Controles del Centro de control'),
+            description: _('El orden de la lista es el orden de la rejilla (first fit, 4 columnas).'),
+        });
+
+        let rows = [];
+
+        const rebuild = () => {
+            for (const row of rows) {
+                try {
+                    group.remove(row);
+                } catch (_e) {
+                    // Fila ya eliminada.
+                }
+            }
+            rows = [];
+
+            const {byId} = this._catalog(settings);
+            const layout = this._readLayout(settings);
+
+            layout.forEach((entry, index) => {
+                const meta = byId.get(entry.id) ?? {
+                    id: entry.id,
+                    name: entry.id,
+                    category: '',
+                    icon: 'application-x-addon-symbolic',
+                    sizes: ['small'],
+                };
+
+                const row = new Adw.ActionRow({
+                    title: meta.name,
+                    subtitle: meta.category || entry.id,
+                });
+                row.add_prefix(this._controlImage(meta.icon));
+
+                const sizes = (meta.sizes?.length ? meta.sizes : ['small'])
+                    .filter(size => CC_SIZES.includes(size));
+                const sizeModel = Gtk.DropDown.new_from_strings(
+                    sizes.map(size => _(CC_SIZE_LABELS[size] ?? size)));
+                sizeModel.set_valign(Gtk.Align.CENTER);
+                let sizeIndex = sizes.indexOf(entry.size);
+                if (sizeIndex < 0)
+                    sizeIndex = sizes.indexOf(meta.defaultSize);
+                if (sizeIndex < 0)
+                    sizeIndex = 0;
+                sizeModel.set_selected(sizeIndex);
+                sizeModel.connect('notify::selected', () => {
+                    const size = sizes[sizeModel.get_selected()];
+                    if (!size || size === entry.size)
+                        return;
+                    const current = this._readLayout(settings);
+                    const target = current.find(item => item.id === entry.id);
+                    if (!target)
+                        return;
+                    target.size = size;
+                    this._saveLayout(settings, current);
+                });
+                row.add_suffix(sizeModel);
+
+                const up = new Gtk.Button({
+                    icon_name: 'go-up-symbolic',
+                    css_classes: ['flat'],
+                    valign: Gtk.Align.CENTER,
+                    sensitive: index > 0,
+                    tooltip_text: _('Subir'),
+                });
+                up.connect('clicked', () => {
+                    const current = this._readLayout(settings);
+                    if (index <= 0)
+                        return;
+                    [current[index - 1], current[index]] =
+                        [current[index], current[index - 1]];
+                    this._saveLayout(settings, current);
+                });
+                row.add_suffix(up);
+
+                const down = new Gtk.Button({
+                    icon_name: 'go-down-symbolic',
+                    css_classes: ['flat'],
+                    valign: Gtk.Align.CENTER,
+                    sensitive: index < layout.length - 1,
+                    tooltip_text: _('Bajar'),
+                });
+                down.connect('clicked', () => {
+                    const current = this._readLayout(settings);
+                    if (index >= current.length - 1)
+                        return;
+                    [current[index], current[index + 1]] =
+                        [current[index + 1], current[index]];
+                    this._saveLayout(settings, current);
+                });
+                row.add_suffix(down);
+
+                const remove = new Gtk.Button({
+                    icon_name: 'window-close-symbolic',
+                    css_classes: ['flat'],
+                    valign: Gtk.Align.CENTER,
+                    tooltip_text: _('Quitar'),
+                });
+                remove.connect('clicked', () => {
+                    const current = this._readLayout(settings)
+                        .filter(item => item.id !== entry.id);
+                    this._saveLayout(settings, current);
+                });
+                row.add_suffix(remove);
+
+                rows.push(row);
+                group.add(row);
+            });
+
+            const add = new Adw.ActionRow({
+                title: _('Añadir control'),
+                subtitle: _('Añade un control integrado o de otra extensión.'),
+            });
+            const addButton = new Gtk.Button({
+                label: _('Añadir'),
+                css_classes: ['suggested-action'],
+                valign: Gtk.Align.CENTER,
+            });
+            addButton.connect('clicked', () => {
+                const current = this._readLayout(settings);
+                this._openAddDialog(window, settings, 'control-center-layout',
+                    current.map(entry => entry.id), id => {
+                        const {byId} = this._catalog(settings);
+                        const meta = byId.get(id);
+                        if (!meta)
+                            return;
+                        const size = meta.sizes?.includes(meta.defaultSize)
+                            ? meta.defaultSize
+                            : (meta.sizes?.[0] ?? 'small');
+                        current.push({id, size});
+                        this._saveLayout(settings, current);
+                    });
+            });
+            add.add_suffix(addButton);
+            rows.push(add);
+            group.add(add);
+        };
+
+        const changeIds = [];
+        for (const key of ['control-center-layout', 'control-center-catalog']) {
+            changeIds.push(settings.connect(`changed::${key}`, rebuild));
+        }
+        group.connect('destroy', () => {
+            for (const id of changeIds) {
+                try {
+                    settings.disconnect(id);
+                } catch (_e) {
+                    // Ya desconectado.
+                }
+            }
+        });
+
+        rebuild();
+        return group;
+    }
+
+    _buildMenubarControlsGroup(settings, window) {
+        const group = new Adw.PreferencesGroup({
+            title: _('Barra de menús'),
+            description: _('Iconos a la izquierda del Centro de control. Orden de izquierda a derecha.'),
+        });
+
+        let rows = [];
+
+        const rebuild = () => {
+            for (const row of rows) {
+                try {
+                    group.remove(row);
+                } catch (_e) {
+                    // Fila ya eliminada.
+                }
+            }
+            rows = [];
+
+            const {byId} = this._catalog(settings);
+            const list = this._readMenubar(settings);
+
+            list.forEach((id, index) => {
+                const meta = byId.get(id) ?? {
+                    id,
+                    name: id,
+                    category: '',
+                    icon: 'application-x-addon-symbolic',
+                };
+                const row = new Adw.ActionRow({
+                    title: meta.name,
+                    subtitle: meta.category || id,
+                });
+                row.add_prefix(this._controlImage(meta.icon));
+
+                const up = new Gtk.Button({
+                    icon_name: 'go-up-symbolic',
+                    css_classes: ['flat'],
+                    valign: Gtk.Align.CENTER,
+                    sensitive: index > 0,
+                    tooltip_text: _('Mover a la izquierda'),
+                });
+                up.connect('clicked', () => {
+                    const current = this._readMenubar(settings);
+                    if (index <= 0)
+                        return;
+                    [current[index - 1], current[index]] =
+                        [current[index], current[index - 1]];
+                    this._saveMenubar(settings, current);
+                });
+                row.add_suffix(up);
+
+                const down = new Gtk.Button({
+                    icon_name: 'go-down-symbolic',
+                    css_classes: ['flat'],
+                    valign: Gtk.Align.CENTER,
+                    sensitive: index < list.length - 1,
+                    tooltip_text: _('Mover a la derecha'),
+                });
+                down.connect('clicked', () => {
+                    const current = this._readMenubar(settings);
+                    if (index >= current.length - 1)
+                        return;
+                    [current[index], current[index + 1]] =
+                        [current[index + 1], current[index]];
+                    this._saveMenubar(settings, current);
+                });
+                row.add_suffix(down);
+
+                const remove = new Gtk.Button({
+                    icon_name: 'window-close-symbolic',
+                    css_classes: ['flat'],
+                    valign: Gtk.Align.CENTER,
+                    tooltip_text: _('Quitar de la barra'),
+                });
+                remove.connect('clicked', () => {
+                    this._saveMenubar(settings,
+                        this._readMenubar(settings).filter(item => item !== id));
+                });
+                row.add_suffix(remove);
+
+                rows.push(row);
+                group.add(row);
+            });
+
+            const add = new Adw.ActionRow({
+                title: _('Añadir a la barra'),
+                subtitle: _('Muestra el icono de un control en la barra superior.'),
+            });
+            const addButton = new Gtk.Button({
+                label: _('Añadir'),
+                css_classes: ['suggested-action'],
+                valign: Gtk.Align.CENTER,
+            });
+            addButton.connect('clicked', () => {
+                const current = this._readMenubar(settings);
+                this._openAddDialog(window, settings, 'menubar-controls',
+                    current, id => {
+                        current.push(id);
+                        this._saveMenubar(settings, current);
+                    });
+            });
+            add.add_suffix(addButton);
+            rows.push(add);
+            group.add(add);
+        };
+
+        const changeIds = [];
+        for (const key of ['menubar-controls', 'control-center-catalog']) {
+            changeIds.push(settings.connect(`changed::${key}`, rebuild));
+        }
+        group.connect('destroy', () => {
+            for (const id of changeIds) {
+                try {
+                    settings.disconnect(id);
+                } catch (_e) {
+                    // Ya desconectado.
+                }
+            }
+        });
+
+        rebuild();
+        return group;
+    }
+
+    _openAddDialog(window, settings, key, current, onPick) {
+        const {catalog} = this._catalog(settings);
+        const dialog = new Adw.Dialog({
+            title: _('Añadir control'),
+            content_width: 420,
+            content_height: 540,
+        });
+
+        const toolbar = new Adw.ToolbarView();
+        const header = new Adw.HeaderBar();
+        toolbar.add_top_bar(header);
+
+        const scroll = new Gtk.ScrolledWindow({
+            hscrollbar_policy: Gtk.PolicyType.NEVER,
+            vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+            vexpand: true,
+        });
+        const page = new Adw.PreferencesPage();
+
+        const grouped = new Map();
+        for (const entry of catalog) {
+            if (!grouped.has(entry.category))
+                grouped.set(entry.category, []);
+            grouped.get(entry.category).push(entry);
+        }
+
+        const categories = [
+            ...CC_CATEGORY_ORDER.filter(category => grouped.has(category)),
+            ...[...grouped.keys()].filter(category =>
+                !CC_CATEGORY_ORDER.includes(category)),
+        ];
+
+        for (const category of categories) {
+            const group = new Adw.PreferencesGroup({title: _(category)});
+            for (const entry of grouped.get(category)) {
+                const row = new Adw.ActionRow({
+                    title: entry.name,
+                    subtitle: entry.id,
+                    activatable: !current.includes(entry.id),
+                });
+                row.add_prefix(this._controlImage(entry.icon));
+                if (current.includes(entry.id)) {
+                    row.add_suffix(new Gtk.Image({
+                        icon_name: 'object-select-symbolic',
+                        pixel_size: 16,
+                    }));
+                } else {
+                    row.connect('activated', () => {
+                        onPick(entry.id);
+                        dialog.close();
+                    });
+                }
+                group.add(row);
+            }
+            page.add(group);
+        }
+
+        scroll.set_child(page);
+        toolbar.set_content(scroll);
+        dialog.set_child(toolbar);
+        dialog.present(window);
+    }
+
+    _buildControlCenterResetGroup(window, settings) {
+        const group = new Adw.PreferencesGroup({
+            title: _('Restablecer'),
+            description: _('Vuelve a la distribución de macOS Tahoe.'),
+        });
+
+        const row = new Adw.ActionRow({
+            title: _('Restablecer diseño'),
+            subtitle: _('Rejilla del Centro de control y controles de la barra.'),
+        });
+        const button = new Gtk.Button({
+            label: _('Restablecer'),
+            css_classes: ['destructive-action'],
+            valign: Gtk.Align.CENTER,
+        });
+        button.connect('clicked', async () => {
+            const dialog = new Adw.AlertDialog({
+                heading: _('¿Restablecer el diseño de Tahoe?'),
+                body: _('Se restauran la rejilla del Centro de control y los iconos de la barra.'),
+            });
+            dialog.add_response('cancel', _('Cancelar'));
+            dialog.add_response('reset', _('Restablecer'));
+            dialog.set_response_appearance('reset',
+                Adw.ResponseAppearance.DESTRUCTIVE);
+            dialog.set_default_response('cancel');
+            dialog.set_close_response('cancel');
+
+            try {
+                const response = await dialog.choose(window, null);
+                if (response !== 'reset')
+                    return;
+                this._saveLayout(settings, DEFAULT_CC_LAYOUT);
+                this._saveMenubar(settings, DEFAULT_MENUBAR_CONTROLS);
+            } catch (e) {
+                if (e?.matches?.(Gtk.DialogError, Gtk.DialogError.DISMISSED))
+                    return;
+                logError(e, 'No se pudo restablecer el diseño');
+            }
+        });
+        row.add_suffix(button);
+        group.add(row);
         return group;
     }
 
