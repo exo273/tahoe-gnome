@@ -1240,8 +1240,23 @@ export class ControlCenterEditor {
         let pending = null;
         let grab = null;
 
-        actor.connect('button-press-event', (target, event) => {
-            if (event.get_button() !== 1)
+        // Los St.Button (galería) usan Clutter.ClickGesture, que se queda
+        // con la secuencia del puntero: sus señales motion-event no llegan.
+        // Escuchamos en la fase de captura, que va antes que los gestos.
+        // En los módulos del CC hay que dejar pasar el «−» y el tirador.
+        const isDecoration = event => {
+            let target = global.stage.get_event_actor(event);
+            while (target && target !== actor) {
+                if (target.has_style_class_name?.('tahoe-cc-edit-minus') ||
+                    target.has_style_class_name?.('tahoe-cc-edit-resize'))
+                    return true;
+                target = target.get_parent();
+            }
+            return false;
+        };
+
+        const onPress = event => {
+            if (event.get_button() !== 1 || isDecoration(event))
                 return Clutter.EVENT_PROPAGATE;
 
             pending = {
@@ -1251,9 +1266,9 @@ export class ControlCenterEditor {
                 started: false,
             };
             return Clutter.EVENT_PROPAGATE;
-        });
+        };
 
-        actor.connect('motion-event', (target, event) => {
+        const onMotion = event => {
             if (!pending)
                 return Clutter.EVENT_PROPAGATE;
 
@@ -1273,9 +1288,9 @@ export class ControlCenterEditor {
 
             this._moveDrag(x, y);
             return Clutter.EVENT_STOP;
-        });
+        };
 
-        actor.connect('button-release-event', (target, event) => {
+        const onRelease = event => {
             if (!pending)
                 return Clutter.EVENT_PROPAGATE;
 
@@ -1304,6 +1319,19 @@ export class ControlCenterEditor {
             });
 
             return Clutter.EVENT_STOP;
+        };
+
+        actor.connect('captured-event', (_actor, event) => {
+            switch (event.type()) {
+            case Clutter.EventType.BUTTON_PRESS:
+                return onPress(event);
+            case Clutter.EventType.MOTION:
+                return onMotion(event);
+            case Clutter.EventType.BUTTON_RELEASE:
+                return onRelease(event);
+            default:
+                return Clutter.EVENT_PROPAGATE;
+            }
         });
     }
 
@@ -1369,7 +1397,10 @@ export class ControlCenterEditor {
         if (!drag || !overlay)
             return;
 
-        const [lx, ly] = overlay.transform_stage_point(stageX, stageY);
+        // transform_stage_point() devuelve [ok, x, y].
+        const [ok, lx, ly] = overlay.transform_stage_point(stageX, stageY);
+        if (!ok)
+            return;
         drag.proxy.translation_x = lx - drag.offsetX;
         drag.proxy.translation_y = ly - drag.offsetY;
 
@@ -1708,14 +1739,26 @@ export class ControlCenterEditor {
                 // Ignorar.
             }
 
-            this._barBackup.set(id, {
+            const backup = {
                 button,
                 container,
                 original,
                 wrapper,
                 minus,
                 wasReactive,
-            });
+                dead: false,
+            };
+            // Al apagar el shell el panel se destruye antes de que el menú
+            // salga del modo edición: no hay que tocar actores ya liberados.
+            const markDead = () => {
+                backup.dead = true;
+            };
+            backup.deadIds = [
+                [button, button.connect('destroy', markDead)],
+                [container, container.connect('destroy', markDead)],
+                [wrapper, wrapper.connect('destroy', markDead)],
+            ];
+            this._barBackup.set(id, backup);
 
             this._attachBarDragHandlers(wrapper, id);
         }
@@ -1725,6 +1768,12 @@ export class ControlCenterEditor {
         for (const [id, backup] of [...this._barBackup]) {
             this._barBackup.delete(id);
             const {button, container, original, wrapper, wasReactive} = backup;
+
+            if (backup.dead)
+                continue;
+
+            for (const [object, signalId] of backup.deadIds ?? [])
+                object.disconnect(signalId);
 
             try {
                 if (container?.get_child() === wrapper) {
