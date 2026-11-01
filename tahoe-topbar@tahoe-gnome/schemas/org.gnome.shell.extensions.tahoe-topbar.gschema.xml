@@ -106,6 +106,14 @@
       <default>true</default>
       <summary>Mostrar el módulo Reproduciendo (MPRIS) en el Centro de control</summary>
     </key>
+    <key name="control-center-show-sound-icon" type="b">
+      <default>true</default>
+      <summary>Mostrar el indicador de sonido en la barra</summary>
+    </key>
+    <key name="control-center-blur" type="b">
+      <default>true</default>
+      <summary>Desenfocar el fondo detrás de los módulos de cristal</summary>
+    </key>
 
     <!-- ===== Reloj ===== -->
     <key name="move-clock-right" type="b">

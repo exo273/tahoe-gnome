@@ -625,10 +625,22 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
             'control-center-show-now-playing',
             _('Mostrar «Reproduciendo»'),
             _('Controles del reproductor multimedia activo (MPRIS).'));
+        const sound = this._switchRow(
+            settings,
+            'control-center-show-sound-icon',
+            _('Icono de sonido en la barra'),
+            _('Volumen y selección de salida con un clic; la rueda cambia el volumen.'));
+        const blur = this._switchRow(
+            settings,
+            'control-center-blur',
+            _('Desenfoque Liquid Glass'),
+            _('Desenfoca el fondo detrás de los módulos. Desactívalo si notas lentitud.'));
         group.add(battery);
+        group.add(sound);
         group.add(media);
+        group.add(blur);
 
-        for (const row of [battery, media]) {
+        for (const row of [battery, sound, media, blur]) {
             settings.bind('control-center-enabled', row, 'sensitive',
                 Gio.SettingsBindFlags.GET);
         }

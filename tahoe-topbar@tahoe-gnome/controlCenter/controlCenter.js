@@ -1,15 +1,11 @@
 // -*- mode: js; indent-tabs-mode: nil; js-indent-level: 4 -*-
 //
-// Centro de control estilo macOS Tahoe (macOS 26).
+// Centro de control estilo macOS Tahoe.
 //
-// Se instala desde extension.js con:
-//
-//     const cc = new TahoeControlCenter(extension);
-//     cc.destroy();
-//
-// El módulo añade tres botones a la barra (batería, Wi-Fi y Centro de
-// control), oculta los indicadores del botón de Ajustes rápidos de GNOME
-// (devolviéndolos a su sitio en destroy) y sustituye el atajo Super+S.
+// La interfaz replica la rejilla de 4 columnas de Tahoe: módulos de cristal
+// flotantes sobre el fondo, sin panel contenedor. Los controladores de estado
+// (NM, Bluetooth, UPower, MPRIS, Gvc) y la restauración de QuickSettings se
+// mantienen separados de la construcción visual.
 
 'use strict';
 
@@ -27,18 +23,19 @@ import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 import {getMixerControl} from 'resource:///org/gnome/shell/ui/status/volume.js';
 import {getRfkillManager} from 'resource:///org/gnome/shell/ui/status/rfkill.js';
 
+import {applyGlass} from './glass.js';
 import {
+    BatteryIcon,
     CircleButton,
-    createModuleRow,
-    createTile,
-    createQuickAction,
-    createTahoeSlider,
-    createListRow,
-    createSectionLabel,
-    createSeparator,
+    createPill,
+    createMediaCard,
+    createWideCard,
+    createFooterPill,
     createDetailHeader,
-    createFooterLink,
+    createSectionHeader,
+    createListRow,
     createControlCenterGlyph,
+    TahoeSlider,
 } from './widgets.js';
 
 import {NetworkController} from './network.js';
@@ -50,9 +47,11 @@ const LOG = '[tahoe-topbar/cc]';
 
 const ROLES = {
     battery: 'tahoeCCBattery',
+    sound: 'tahoeCCSound',
     wifi: 'tahoeCCWifi',
     controlCenter: 'tahoeControlCenter',
 };
+
 const COLOR_SETTINGS = 'org.gnome.desktop.interface';
 const NOTIFICATION_SETTINGS = 'org.gnome.desktop.notifications';
 const COLOR_PLUGIN_SETTINGS = 'org.gnome.settings-daemon.plugins.color';
@@ -84,11 +83,6 @@ function parseArtwork(artUrl) {
     return '';
 }
 
-/**
- * Abre un panel concreto de gnome-control-center. Usa la acción
- * "launch-panel" de la aplicación (como GNOME Shell) y cae a spawn si la
- * aplicación no está disponible.
- */
 function openSettingsPanel(panel) {
     try {
         const app = Shell.AppSystem.get_default()
@@ -137,6 +131,18 @@ function openSettingsApp() {
     }
 }
 
+function signalName(strength) {
+    if (strength < 20)
+        return 'none';
+    if (strength < 40)
+        return 'weak';
+    if (strength < 50)
+        return 'ok';
+    if (strength < 80)
+        return 'good';
+    return 'excellent';
+}
+
 export class TahoeControlCenter {
     constructor(extension) {
         this._extension = extension ?? null;
@@ -144,12 +150,12 @@ export class TahoeControlCenter {
         this._tracked = new Set();
         this._timeoutIds = new Set();
         this._idleIds = new Set();
+        this._glassActors = new Set();
 
         this._theme = null;
         this._cssFile = null;
 
         this._settings = null;
-
         this._interfaceSettings = null;
         this._notificationSettings = null;
         this._colorSettings = null;
@@ -166,24 +172,32 @@ export class TahoeControlCenter {
         this._qsWasVisible = true;
         this._qsTempVisible = false;
         this._qsRestoring = false;
+        this._qsScanIdleId = 0;
         this._brightnessAnchor = null;
         this._brightnessIndicator = null;
+        this._originalAddExternalIndicator = null;
+        this._addExternalIndicatorOverride = null;
 
         this._batteryButton = null;
+        this._soundButton = null;
         this._wifiButton = null;
         this._ccButton = null;
 
         this._batteryLabel = null;
         this._batteryIcon = null;
+        this._soundPanelIcon = null;
         this._wifiPanelIcon = null;
 
         this._batteryPopoverBox = null;
         this._wifiPopoverBox = null;
+        this._soundPopoverBox = null;
+        this._soundPopoverRefs = null;
 
         this._ccRoot = null;
         this._view = 'main';
         this._mainRefs = null;
         this._detailRefs = null;
+        this._detailView = null;
 
         this._network = null;
         this._bluetooth = null;
@@ -198,6 +212,8 @@ export class TahoeControlCenter {
         this._updatingVolumeSlider = false;
 
         this._syncTimeoutId = 0;
+        this._blurEnabled = true;
+        this._showSoundIcon = true;
 
         this._loadStylesheet();
         this._loadSettings();
@@ -284,10 +300,15 @@ export class TahoeControlCenter {
             this._colorSettings = null;
         }
 
+        this._blurEnabled = this._getBoolean('control-center-blur', true);
+        this._showSoundIcon = this._getBoolean('control-center-show-sound-icon', true);
+
         if (this._settings) {
             for (const key of [
                 'control-center-show-battery-percent',
                 'control-center-show-now-playing',
+                'control-center-show-sound-icon',
+                'control-center-blur',
             ]) {
                 this._connect(this._settings, `changed::${key}`,
                     () => this._onSettingsChanged(key));
@@ -300,11 +321,27 @@ export class TahoeControlCenter {
             return;
 
         switch (key) {
-        case 'control-center-show-battery-percent':
-        case 'control-center-show-now-playing':
-            this._queueSync();
+        case 'control-center-blur':
+            this._blurEnabled = this._getBoolean('control-center-blur', true);
+            for (const actor of this._glassActors) {
+                try {
+                    if (!actor?.get_stage())
+                        continue;
+                    const radius = actor._tahoeGlass?.radius ??
+                        actor._tahoeGlassRadius ?? 24;
+                    applyGlass(actor, {radius, blur: this._blurEnabled});
+                } catch (e) {
+                    console.error(`${LOG} No se pudo actualizar el cristal:`, e);
+                }
+            }
+            break;
+        case 'control-center-show-sound-icon':
+            this._showSoundIcon = this._getBoolean(
+                'control-center-show-sound-icon', true);
+            this._updatePanelButtons();
             break;
         default:
+            this._queueSync();
             break;
         }
     }
@@ -372,14 +409,14 @@ export class TahoeControlCenter {
         if (this._destroyed || this._syncTimeoutId)
             return;
 
-        this._syncTimeoutId = this._addTimeout(80, () => {
+        this._syncTimeoutId = this._addTimeout(60, () => {
             this._syncTimeoutId = 0;
             this._syncAll();
         });
     }
 
     // ------------------------------------------------------------------
-    // Controladores de estado
+    // Controladores
     // ------------------------------------------------------------------
 
     _createControllers() {
@@ -502,13 +539,72 @@ export class TahoeControlCenter {
     }
 
     // ------------------------------------------------------------------
-    // Botones del panel
+    // Cristal
+    // ------------------------------------------------------------------
+
+    _addGlass(actor, radius) {
+        if (!actor || this._destroyed)
+            return actor;
+
+        this._glassActors.add(actor);
+        actor._tahoeGlassRadius = radius;
+        actor.connect('destroy', () => this._glassActors.delete(actor));
+
+        // Los efectos necesitan que el actor esté en el escenario; se aplican
+        // en el siguiente idle, cuando ya está dentro del menú.
+        this._addIdle(() => {
+            if (this._destroyed)
+                return;
+            try {
+                if (!actor.get_stage())
+                    return;
+                applyGlass(actor, {radius, blur: this._blurEnabled});
+            } catch (e) {
+                console.error(`${LOG} No se pudo aplicar el cristal:`, e);
+            }
+        });
+
+        return actor;
+    }
+
+    _animateIn(actor) {
+        if (!actor)
+            return;
+
+        actor.set_pivot_point(0.5, 0.5);
+        actor.opacity = 0;
+        actor.set_scale(0.96, 0.96);
+        actor.ease({
+            opacity: 255,
+            scale_x: 1,
+            scale_y: 1,
+            duration: 180,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Botones de la barra
     // ------------------------------------------------------------------
 
     _createPanelButtons() {
         this._createBatteryButton();
+        this._createSoundButton();
         this._createWifiButton();
         this._createControlCenterButton();
+    }
+
+    _setButtonOpen(button, open) {
+        if (!button)
+            return;
+        try {
+            if (open)
+                button.add_style_class_name('tahoe-cc-open');
+            else
+                button.remove_style_class_name('tahoe-cc-open');
+        } catch (_e) {
+            // Ignorar.
+        }
     }
 
     _createBatteryButton() {
@@ -527,11 +623,7 @@ export class TahoeControlCenter {
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        this._batteryIcon = new St.Icon({
-            style_class: 'tahoe-cc-panel-icon',
-            icon_size: 16,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
+        this._batteryIcon = new BatteryIcon();
 
         box.add_child(this._batteryLabel);
         box.add_child(this._batteryIcon);
@@ -549,6 +641,7 @@ export class TahoeControlCenter {
         this._batteryButton.menu.box.add_child(this._batteryPopoverBox);
 
         this._connect(this._batteryButton.menu, 'open-state-changed', (_menu, open) => {
+            this._setButtonOpen(this._batteryButton, open);
             if (open) {
                 this._applyColorScheme();
                 this._buildBatteryPopover();
@@ -556,6 +649,48 @@ export class TahoeControlCenter {
         });
 
         this._insertPanelButton(ROLES.battery, this._batteryButton);
+    }
+
+    _createSoundButton() {
+        this._soundButton = new PanelMenu.Button(0.0, 'Sonido', false);
+        this._soundButton.add_style_class_name('tahoe-cc-panel-button');
+        this._soundButton.add_style_class_name('tahoe-cc-sound-button');
+
+        this._soundPanelIcon = new St.Icon({
+            style_class: 'tahoe-cc-panel-icon',
+            icon_size: 16,
+            icon_name: 'audio-volume-medium-symbolic',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._soundButton.add_child(this._soundPanelIcon);
+
+        this._soundButton.menu.actor.add_style_class_name('tahoe-cc-menu');
+        this._soundButton.menu.actor.add_style_class_name('tahoe-cc-popover');
+        this._soundButton.menu.actor.add_style_class_name('tahoe-cc-sound-popover');
+
+        this._soundPopoverBox = new St.BoxLayout({
+            style_class: 'tahoe-cc-popover-inner',
+            orientation: Clutter.Orientation.VERTICAL,
+            x_expand: true,
+        });
+        this._soundButton.menu.box.add_child(this._soundPopoverBox);
+
+        this._connect(this._soundButton.menu, 'open-state-changed', (_menu, open) => {
+            this._setButtonOpen(this._soundButton, open);
+            if (open) {
+                this._applyColorScheme();
+                this._buildSoundPopover();
+            } else {
+                this._soundPopoverRefs = null;
+            }
+        });
+
+        this._connect(this._soundButton, 'scroll-event', (actor, event) => {
+            this._onSoundScroll(event);
+            return Clutter.EVENT_STOP;
+        });
+
+        this._insertPanelButton(ROLES.sound, this._soundButton);
     }
 
     _createWifiButton() {
@@ -583,6 +718,7 @@ export class TahoeControlCenter {
         this._wifiButton.menu.box.add_child(this._wifiPopoverBox);
 
         this._connect(this._wifiButton.menu, 'open-state-changed', (_menu, open) => {
+            this._setButtonOpen(this._wifiButton, open);
             if (open) {
                 this._applyColorScheme();
                 this._buildWifiPopover();
@@ -614,6 +750,7 @@ export class TahoeControlCenter {
         this._ccButton.menu.box.add_child(this._ccRoot);
 
         this._connect(this._ccButton.menu, 'open-state-changed', (_menu, open) => {
+            this._setButtonOpen(this._ccButton, open);
             if (open) {
                 this._view = 'main';
                 this._applyColorScheme();
@@ -623,10 +760,7 @@ export class TahoeControlCenter {
             }
         });
 
-        // Al terminar la animación de cierre liberamos los widgets.
-        this._connect(this._ccButton.menu, 'menu-closed', () => {
-            this._clearView();
-        });
+        this._connect(this._ccButton.menu, 'menu-closed', () => this._clearView());
 
         this._insertPanelButton(ROLES.controlCenter, this._ccButton);
     }
@@ -681,12 +815,15 @@ export class TahoeControlCenter {
     }
 
     // ------------------------------------------------------------------
-    // Ajustes rápidos de GNOME
+    // Ajustes rápidos de GNOME (misma lógica que la versión anterior)
     // ------------------------------------------------------------------
 
     _isManagedIndicator(actor) {
         const qs = this._qs;
         if (!qs || !actor)
+            return false;
+
+        if (this._brightnessAnchor && actor === this._brightnessAnchor)
             return false;
 
         if (this._qsDetachedSet.has(actor))
@@ -717,6 +854,34 @@ export class TahoeControlCenter {
         this._qs = qs;
         this._qsIndicators = qs._indicators;
         this._qsWasVisible = qs.container?.visible ?? true;
+
+        // Si el ancla de brillo no está disponible (por ejemplo, porque el
+        // escaneo diferido aún no ha corrido), desviamos la inserción de
+        // indicadores externos para no depender de quickSettings._brightness.
+        if (!this._originalAddExternalIndicator) {
+            this._originalAddExternalIndicator = qs.addExternalIndicator;
+            this._addExternalIndicatorOverride = (indicator, colSpan = 1) => {
+                let sibling = null;
+                if (this._brightnessAnchor?.get_parent() === this._qsIndicators)
+                    sibling = this._brightnessAnchor;
+                else if (qs._brightness?.get_parent() === this._qsIndicators)
+                    sibling = qs._brightness;
+
+                try {
+                    this._qsIndicators.insert_child_below(indicator, sibling);
+                } catch (_e) {
+                    this._qsIndicators.add_child(indicator);
+                }
+
+                try {
+                    const itemSibling = qs._backgroundApps?.quickSettingsItems?.at(-1) ?? null;
+                    qs._addItemsBefore(indicator.quickSettingsItems, itemSibling, colSpan);
+                } catch (e) {
+                    console.error(`${LOG} No se pudieron añadir los ítems externos:`, e);
+                }
+            };
+            qs.addExternalIndicator = this._addExternalIndicatorOverride;
+        }
 
         // Al iniciar sesión, QuickSettings._setupIndicators() añade los
         // indicadores y justo después usa qs._brightness.quickSettingsItems.
@@ -788,10 +953,6 @@ export class TahoeControlCenter {
         const index = children.indexOf(actor);
         const sibling = index >= 0 ? children[index + 1] ?? null : null;
 
-        // El botón de Ajustes rápidos usa quickSettings._brightness como
-        // ancla para insertar indicadores de otras extensiones. Sustituimos
-        // el indicador real por un actor invisible para que esa API siga
-        // funcionando mientras el brillo está oculto.
         let insertedAnchor = false;
         if (this._qs?._brightness === actor && !this._brightnessAnchor) {
             try {
@@ -800,7 +961,6 @@ export class TahoeControlCenter {
                     width: 0,
                     height: 0,
                 });
-                // Por si algún código de GNOME lee el ancla como indicador.
                 anchor.quickSettingsItems = [];
                 this._qsIndicators.insert_child_at_index(anchor, index);
                 this._brightnessAnchor = anchor;
@@ -890,7 +1050,6 @@ export class TahoeControlCenter {
                 if (!actor)
                     continue;
 
-                // El brillo se restaura después, en la posición de su ancla.
                 if (actor === this._brightnessIndicator)
                     continue;
 
@@ -938,10 +1097,19 @@ export class TahoeControlCenter {
 
         this._brightnessAnchor = null;
         this._brightnessIndicator = null;
-
         this._qsDetached = [];
         this._qsDetachedSet.clear();
         this._qsRestoring = false;
+
+        if (this._qs && this._originalAddExternalIndicator) {
+            try {
+                this._qs.addExternalIndicator = this._originalAddExternalIndicator;
+            } catch (_e) {
+                // Ignorar.
+            }
+        }
+        this._originalAddExternalIndicator = null;
+        this._addExternalIndicatorOverride = null;
 
         if (this._qs?.container) {
             try {
@@ -967,9 +1135,8 @@ export class TahoeControlCenter {
         if (!this._panel || !this._originalToggleQuickSettings)
             return;
 
-        if (this._panel.toggleQuickSettings === this._toggleQuickSettingsOverride) {
+        if (this._panel.toggleQuickSettings === this._toggleQuickSettingsOverride)
             this._panel.toggleQuickSettings = this._originalToggleQuickSettings;
-        }
 
         this._originalToggleQuickSettings = null;
         this._toggleQuickSettingsOverride = null;
@@ -1028,7 +1195,8 @@ export class TahoeControlCenter {
         if (!rightBox || !clock || clock.get_parent() !== rightBox)
             return;
 
-        for (const button of [this._batteryButton, this._wifiButton, this._ccButton]) {
+        for (const button of [this._batteryButton, this._soundButton,
+            this._wifiButton, this._ccButton]) {
             const container = button?.container;
             if (!container || container.get_parent() !== rightBox)
                 continue;
@@ -1054,7 +1222,8 @@ export class TahoeControlCenter {
 
         this._isLight = light;
 
-        for (const button of [this._ccButton, this._batteryButton, this._wifiButton]) {
+        for (const button of [this._ccButton, this._batteryButton,
+            this._soundButton, this._wifiButton]) {
             const actor = button?.menu?.actor;
             if (!actor)
                 continue;
@@ -1092,6 +1261,75 @@ export class TahoeControlCenter {
         this._view = 'main';
     }
 
+    _createSheet(styleClass, radius, extraClass = '') {
+        const sheet = new St.BoxLayout({
+            style_class: `tahoe-cc-glass tahoe-cc-sheet ${styleClass} ${extraClass}`.trim(),
+            orientation: Clutter.Orientation.VERTICAL,
+            x_expand: true,
+        });
+        this._addGlass(sheet, radius);
+        return sheet;
+    }
+
+    _createSheetLink(text, onClick) {
+        const button = new St.Button({
+            style_class: 'tahoe-cc-sheet-link',
+            can_focus: true,
+            reactive: true,
+            track_hover: true,
+            x_expand: true,
+            accessible_name: text,
+        });
+        button.set_child(new St.Label({
+            text,
+            style_class: 'tahoe-cc-sheet-link-label',
+            x_align: Clutter.ActorAlign.START,
+        }));
+        button.connect('clicked', () => onClick());
+        return button;
+    }
+
+    _createSeparator(classExtra = '') {
+        return new St.Widget({
+            style_class: `tahoe-cc-separator ${classExtra}`.trim(),
+            x_expand: true,
+        });
+    }
+
+    _createScrollList(rows, rowHeight = 28, maxHeight = 420) {
+        const scroll = new St.ScrollView({
+            style_class: 'tahoe-cc-scroll',
+            hscrollbar_policy: St.PolicyType.NEVER,
+            vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            overlay_scrollbars: true,
+            x_expand: true,
+        });
+
+        const content = new St.BoxLayout({
+            style_class: 'tahoe-cc-list',
+            orientation: Clutter.Orientation.VERTICAL,
+            x_expand: true,
+        });
+        for (const row of rows)
+            content.add_child(row);
+        scroll.set_child(content);
+
+        const height = Math.min(
+            Math.max(rows.length, 1) * px(rowHeight) + px(4),
+            px(maxHeight));
+        const holder = new St.Bin({
+            style_class: 'tahoe-cc-scroll-holder',
+            x_expand: true,
+            height,
+        });
+        holder.set_child(scroll);
+        return holder;
+    }
+
+    // ------------------------------------------------------------------
+    // Rejilla principal
+    // ------------------------------------------------------------------
+
     _renderMain() {
         if (!this._ccRoot)
             return;
@@ -1101,328 +1339,248 @@ export class TahoeControlCenter {
         this._detailRefs = null;
         this._view = 'main';
 
-        const root = this._ccRoot;
-
-        // --- Rejilla de dos columnas ----------------------------------
         const grid = new St.Widget({
             style_class: 'tahoe-cc-grid',
             layout_manager: new Clutter.GridLayout(),
             x_expand: true,
+            x_align: Clutter.ActorAlign.START,
         });
-        const gridLayout = grid.layout_manager;
-        gridLayout.column_spacing = px(10);
-        gridLayout.row_spacing = px(10);
-        gridLayout.column_homogeneous = true;
+        const layout = grid.layout_manager;
+        layout.column_spacing = px(12);
+        layout.row_spacing = px(12);
 
-        const connectivity = new St.BoxLayout({
-            style_class: 'tahoe-cc-card tahoe-cc-connectivity',
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            y_expand: true,
-            x_align: Clutter.ActorAlign.FILL,
-            y_align: Clutter.ActorAlign.FILL,
-        });
+        this._ccRoot.add_child(grid);
 
-        const rightColumn = new St.BoxLayout({
-            style_class: 'tahoe-cc-right-column',
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            y_expand: true,
-            x_align: Clutter.ActorAlign.FILL,
-            y_align: Clutter.ActorAlign.FILL,
-        });
-
-        gridLayout.attach(connectivity, 0, 0, 1, 1);
-        gridLayout.attach(rightColumn, 1, 0, 1, 1);
-        root.add_child(grid);
-
-        // Wi-Fi
-        const wifiRow = createModuleRow({
+        // Fila 1: Wi-Fi (2 columnas) + Reproduciendo (2x2)
+        const wifi = createPill({
             iconName: 'network-wireless-signal-none-symbolic',
             title: 'Wi‑Fi',
-            onToggle: () => this._network?.toggleWifi(),
-            onActivate: () => this._showDetail('wifi'),
+            subtitle: 'Desactivado',
+            onIconClick: () => this._network?.toggleWifi(),
+            onTextClick: () => this._showDetail('wifi'),
+            accessibleName: 'Wi‑Fi',
         });
-        connectivity.add_child(wifiRow.row);
+        this._addGlass(wifi.pill, 31);
+        layout.attach(wifi.pill, 0, 0, 2, 1);
 
-        // Bluetooth
-        const bluetoothRow = createModuleRow({
-            iconName: 'bluetooth-disabled-symbolic',
-            title: 'Bluetooth',
-            onToggle: () => this._bluetooth?.toggle(),
-            onActivate: () => this._showDetail('bluetooth'),
-        });
-        connectivity.add_child(bluetoothRow.row);
+        const media = createMediaCard();
+        this._addGlass(media.card, 26);
+        layout.attach(media.card, 2, 0, 2, 2);
+        media.previous.connect('clicked', () => this._media?.previous());
+        media.play.connect('clicked', () => this._media?.playPause());
+        media.next.connect('clicked', () => this._media?.next());
 
-        // Modo avión
-        const airplaneRow = createModuleRow({
+        // Fila 2: Bluetooth + Modo avión
+        const bluetooth = this._createBluetoothCircle();
+        layout.attach(bluetooth, 0, 1, 1, 1);
+
+        const airplane = new CircleButton({
             iconName: 'airplane-mode-symbolic',
-            title: 'Modo avión',
-            onToggle: () => {
-                if (this._rfkill)
-                    this._rfkill.airplane_mode = !this._rfkill.airplane_mode;
-            },
+            iconSize: 22,
+            accessibleName: 'Modo avión',
+            size: 62,
         });
-        connectivity.add_child(airplaneRow.row);
-
-        this._mainRefs.wifi = wifiRow;
-        this._mainRefs.bluetooth = bluetoothRow;
-        this._mainRefs.airplane = airplaneRow;
-
-        // Concentración
-        const focusCard = new St.BoxLayout({
-            style_class: 'tahoe-cc-card tahoe-cc-focus-card',
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.FILL,
+        this._addGlass(airplane, 31);
+        airplane.connect('clicked', () => {
+            if (this._rfkill)
+                this._rfkill.airplane_mode = !this._rfkill.airplane_mode;
         });
+        layout.attach(airplane, 1, 1, 1, 1);
 
-        const focusRow = createModuleRow({
+        // Fila 3: Concentración + Modo oscuro + Luz nocturna
+        const focus = createPill({
             iconName: 'weather-clear-night-symbolic',
             title: 'Concentración',
-            onToggle: () => this._toggleDoNotDisturb(),
-            onActivate: () => this._toggleDoNotDisturb(),
+            subtitle: 'Desactivado',
+            onIconClick: () => this._toggleDoNotDisturb(),
+            onTextClick: () => this._toggleDoNotDisturb(),
+            accessibleName: 'Concentración',
         });
-        focusCard.add_child(focusRow.row);
-        rightColumn.add_child(focusCard);
+        focus.pill.add_style_class_name('tahoe-cc-pill-focus');
+        focus.titleLabel.clutter_text.set_ellipsize(Pango.EllipsizeMode.NONE);
+        this._addGlass(focus.pill, 31);
+        layout.attach(focus.pill, 0, 2, 2, 1);
 
-        // Modo oscuro + Luz nocturna
-        const tiles = new St.BoxLayout({
-            style_class: 'tahoe-cc-tiles',
-            x_expand: true,
-            y_expand: true,
-        });
-
-        const darkTile = createTile({
+        const dark = new CircleButton({
             iconName: 'dark-mode-symbolic',
-            title: 'Modo oscuro',
-            onToggle: () => this._toggleDarkMode(),
+            iconSize: 22,
+            accessibleName: 'Modo oscuro',
+            size: 62,
         });
+        this._addGlass(dark, 31);
+        dark.connect('clicked', () => this._toggleDarkMode());
+        layout.attach(dark, 2, 2, 1, 1);
 
-        const nightTile = createTile({
+        const night = new CircleButton({
             iconName: 'night-light-symbolic',
-            title: 'Luz nocturna',
-            onToggle: () => this._toggleNightLight(),
+            iconSize: 22,
+            accessibleName: 'Luz nocturna',
+            size: 62,
         });
+        this._addGlass(night, 31);
+        night.connect('clicked', () => this._toggleNightLight());
+        layout.attach(night, 3, 2, 1, 1);
 
-        tiles.add_child(darkTile.tile);
-        tiles.add_child(nightTile.tile);
-        rightColumn.add_child(tiles);
+        let row = 3;
 
-        this._mainRefs.focus = focusRow;
-        this._mainRefs.dark = darkTile;
-        this._mainRefs.night = nightTile;
-
-        // --- Pantalla --------------------------------------------------
-        const brightnessCard = new St.BoxLayout({
-            style_class: 'tahoe-cc-card tahoe-cc-slider-card',
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.FILL,
-        });
-        brightnessCard.add_child(new St.Label({
-            text: 'Pantalla',
-            style_class: 'tahoe-cc-card-title',
-            x_align: Clutter.ActorAlign.START,
-        }));
-
-        const brightness = createTahoeSlider({
-            iconName: 'display-brightness-symbolic',
+        // Fila 4: Pantalla (ancha)
+        const brightness = createWideCard({
+            title: 'Pantalla',
+            leftIcon: 'display-brightness-symbolic',
+            rightIcon: 'display-brightness-symbolic',
+            leftIconSize: 13,
+            rightIconSize: 18,
             accessibleName: 'Brillo de la pantalla',
         });
+        this._addGlass(brightness.card, 24);
         brightness.slider.connect('notify::value', () => {
             if (this._updatingBrightnessSlider)
                 return;
-
             const scale = Main.brightnessManager?.globalScale;
             if (scale)
                 scale.value = brightness.slider.value;
         });
-        brightnessCard.add_child(brightness.actor);
-        root.add_child(brightnessCard);
-        this._mainRefs.brightnessCard = brightnessCard;
-        this._mainRefs.brightness = brightness;
+        layout.attach(brightness.card, 0, row++, 4, 1);
 
-        // --- Sonido ----------------------------------------------------
-        const soundCard = new St.BoxLayout({
-            style_class: 'tahoe-cc-card tahoe-cc-slider-card',
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.FILL,
-        });
-
-        const soundHeader = new St.BoxLayout({
-            x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        soundHeader.add_child(new St.Label({
-            text: 'Sonido',
-            style_class: 'tahoe-cc-card-title',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-        }));
-
-        const outputButton = new CircleButton({
-            iconName: 'audio-headphones-symbolic',
-            iconSize: 14,
-            accessibleName: 'Elegir salida de sonido',
-            styleClass: 'tahoe-cc-small-circle',
-        });
-        outputButton.connect('clicked', () => this._showDetail('sound'));
-        soundHeader.add_child(outputButton);
-        soundCard.add_child(soundHeader);
-
-        const volume = createTahoeSlider({
-            iconName: 'audio-volume-high-symbolic',
+        // Fila 5: Sonido (ancha)
+        const sound = createWideCard({
+            title: 'Sonido',
+            leftIcon: 'audio-volume-low-symbolic',
+            rightIcon: 'audio-volume-high-symbolic',
+            leftIconSize: 13,
+            rightIconSize: 17,
+            withOutputButton: true,
             accessibleName: 'Volumen',
-            onIconClick: () => this._toggleMute(),
         });
-        volume.slider.connect('notify::value', () => {
+        this._addGlass(sound.card, 24);
+        sound.slider.connect('notify::value', () => {
             if (this._updatingVolumeSlider)
                 return;
-            this._setVolumeFromSlider(volume.slider.value);
+            this._setVolumeFromSlider(sound.slider.value);
         });
-        soundCard.add_child(volume.actor);
-        root.add_child(soundCard);
-        this._mainRefs.soundCard = soundCard;
-        this._mainRefs.volume = volume;
+        if (sound.output)
+            sound.output.connect('clicked', () => this._showDetail('sound'));
+        layout.attach(sound.card, 0, row++, 4, 1);
 
-        // --- Reproduciendo --------------------------------------------
-        const mediaCard = new St.BoxLayout({
-            style_class: 'tahoe-cc-card tahoe-cc-media-card',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.FILL,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        const art = new St.Bin({
-            style_class: 'tahoe-cc-media-art',
-            width: px(44),
-            height: px(44),
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        const artIcon = new St.Icon({
-            icon_name: 'audio-x-generic-symbolic',
-            icon_size: 18,
-            style_class: 'tahoe-cc-media-art-icon',
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        art.set_child(artIcon);
-        mediaCard.add_child(art);
-
-        const mediaLabels = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-            y_align: Clutter.ActorAlign.CENTER,
-            style_class: 'tahoe-cc-media-labels',
-        });
-        const mediaTitle = new St.Label({
-            text: '',
-            style_class: 'tahoe-cc-media-title',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-        });
-        mediaTitle.clutter_text.set_ellipsize(Pango.EllipsizeMode.END);
-        const mediaArtist = new St.Label({
-            text: '',
-            style_class: 'tahoe-cc-media-artist',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-        });
-        mediaArtist.clutter_text.set_ellipsize(Pango.EllipsizeMode.END);
-        mediaLabels.add_child(mediaTitle);
-        mediaLabels.add_child(mediaArtist);
-        mediaCard.add_child(mediaLabels);
-
-        const mediaControls = new St.BoxLayout({
-            style_class: 'tahoe-cc-media-controls',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        const previousButton = new CircleButton({
-            iconName: 'media-skip-backward-symbolic',
-            iconSize: 12,
-            accessibleName: 'Anterior',
-            styleClass: 'tahoe-cc-media-button',
-        });
-        previousButton.connect('clicked', () => this._media?.previous());
-
-        const playButton = new CircleButton({
-            iconName: 'media-playback-start-symbolic',
-            iconSize: 13,
-            accessibleName: 'Reproducir o pausar',
-            styleClass: 'tahoe-cc-media-button',
-        });
-        playButton.connect('clicked', () => this._media?.playPause());
-
-        const nextButton = new CircleButton({
-            iconName: 'media-skip-forward-symbolic',
-            iconSize: 12,
-            accessibleName: 'Siguiente',
-            styleClass: 'tahoe-cc-media-button',
-        });
-        nextButton.connect('clicked', () => this._media?.next());
-
-        mediaControls.add_child(previousButton);
-        mediaControls.add_child(playButton);
-        mediaControls.add_child(nextButton);
-        mediaCard.add_child(mediaControls);
-
-        root.add_child(mediaCard);
-
-        this._mainRefs.mediaCard = mediaCard;
-        this._mainRefs.mediaArt = art;
-        this._mainRefs.mediaArtIcon = artIcon;
-        this._mainRefs.mediaTitle = mediaTitle;
-        this._mainRefs.mediaArtist = mediaArtist;
-        this._mainRefs.mediaPrevious = previousButton;
-        this._mainRefs.mediaPlay = playButton;
-        this._mainRefs.mediaNext = nextButton;
-        this._mainRefs._mediaArtUrl = null;
-
-        // --- Acciones rápidas -----------------------------------------
-        const actions = new St.BoxLayout({
-            style_class: 'tahoe-cc-card tahoe-cc-actions',
-            x_expand: true,
-        });
-
-        const powerAction = createQuickAction({
+        // Fila 6: acciones circulares
+        const power = new CircleButton({
             iconName: 'power-profile-balanced-symbolic',
-            label: 'Perfil de energía',
-            onClick: () => this._powerProfiles?.cycleProfile(),
+            iconSize: 22,
+            accessibleName: 'Perfil de energía',
+            size: 62,
         });
-        const screenshotAction = createQuickAction({
+        this._addGlass(power, 31);
+        power.connect('clicked', () => this._powerProfiles?.cycleProfile());
+
+        const screenshot = new CircleButton({
             iconName: 'screenshooter-symbolic',
-            label: 'Captura',
-            onClick: () => this._takeScreenshot(),
+            iconSize: 22,
+            accessibleName: 'Captura de pantalla',
+            size: 62,
         });
-        const lockAction = createQuickAction({
+        this._addGlass(screenshot, 31);
+        screenshot.connect('clicked', () => this._takeScreenshot());
+
+        const lock = new CircleButton({
             iconName: 'system-lock-screen-symbolic',
-            label: 'Bloquear',
-            onClick: () => this._lockScreen(),
+            iconSize: 22,
+            accessibleName: 'Bloquear',
+            size: 62,
         });
-        const settingsAction = createQuickAction({
+        this._addGlass(lock, 31);
+        lock.connect('clicked', () => this._lockScreen());
+
+        const settings = new CircleButton({
             iconName: 'preferences-system-symbolic',
-            label: 'Ajustes',
-            onClick: () => this._openSettings(),
+            iconSize: 22,
+            accessibleName: 'Ajustes',
+            size: 62,
         });
+        this._addGlass(settings, 31);
+        settings.connect('clicked', () => this._openSettings());
 
-        actions.add_child(powerAction.box);
-        actions.add_child(screenshotAction.box);
-        actions.add_child(lockAction.box);
-        actions.add_child(settingsAction.box);
-        root.add_child(actions);
-        this._mainRefs.powerAction = powerAction;
+        layout.attach(power, 0, row, 1, 1);
+        layout.attach(screenshot, 1, row, 1, 1);
+        layout.attach(lock, 2, row, 1, 1);
+        layout.attach(settings, 3, row, 1, 1);
 
-        // --- Pie -------------------------------------------------------
-        const footer = createFooterLink('Más ajustes de GNOME…',
+        const footer = createFooterPill('Más ajustes de GNOME…',
             () => this._showGnomeQuickSettings());
-        root.add_child(footer);
-        this._mainRefs.footer = footer;
+        this._addGlass(footer, 15);
+        this._ccRoot.add_child(footer);
+
+        this._mainRefs = {
+            wifi, media, bluetooth, airplane, focus, dark, night,
+            brightness: brightness.card,
+            brightnessSlider: brightness.slider,
+            brightnessLeft: brightness.left,
+            brightnessRight: brightness.right,
+            sound: sound.card,
+            soundSlider: sound.slider,
+            soundLeft: sound.left,
+            soundRight: sound.right,
+            soundOutput: sound.output,
+            power, screenshot, lock, settings,
+            footer,
+            _mediaPlaying: null,
+            _mediaArtUrl: null,
+        };
 
         this._syncMainView();
+        this._animateIn(grid);
+    }
+
+    _createBluetoothCircle() {
+        const circle = new CircleButton({
+            iconName: 'bluetooth-disabled-symbolic',
+            iconSize: 22,
+            accessibleName: 'Bluetooth',
+            size: 62,
+        });
+        this._addGlass(circle, 31);
+
+        let longPressId = 0;
+        let longPressTriggered = false;
+
+        circle.connect('button-press-event', (actor, event) => {
+            if (event.get_button() === 3) {
+                this._showDetail('bluetooth');
+                return Clutter.EVENT_STOP;
+            }
+
+            if (event.get_button() === 1 && this._view === 'main') {
+                longPressTriggered = false;
+                longPressId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
+                    longPressId = 0;
+                    longPressTriggered = true;
+                    if (this._view === 'main' && this._ccButton?.menu.isOpen)
+                        this._showDetail('bluetooth');
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
+
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        circle.connect('button-release-event', () => {
+            if (longPressId) {
+                GLib.source_remove(longPressId);
+                longPressId = 0;
+            }
+            if (longPressTriggered) {
+                longPressTriggered = false;
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        circle.connect('clicked', () => {
+            if (longPressTriggered)
+                return;
+            this._bluetooth?.toggle();
+        });
+
+        return circle;
     }
 
     _syncMainView() {
@@ -1432,12 +1590,11 @@ export class TahoeControlCenter {
 
         const network = this._network;
 
-        // Wi-Fi
         if (refs.wifi) {
             let subtitle = 'No disponible';
-            let sensitive = false;
             let on = false;
             let icon = 'network-wireless-signal-none-symbolic';
+            let sensitive = false;
 
             if (network && !network.failed) {
                 sensitive = true;
@@ -1448,7 +1605,6 @@ export class TahoeControlCenter {
                     sensitive = false;
                 } else if (!network.wifiEnabled) {
                     subtitle = 'Desactivado';
-                    on = false;
                 } else {
                     on = true;
                     subtitle = network.wifiSsid || 'No conectado';
@@ -1461,48 +1617,41 @@ export class TahoeControlCenter {
             refs.wifi.setSensitive(sensitive);
         }
 
-        // Bluetooth
         if (refs.bluetooth) {
             const bluetooth = this._bluetooth;
             const available = Boolean(bluetooth?.available);
-            refs.bluetooth.setSubtitle(bluetooth?.subtitle ?? 'No disponible');
             refs.bluetooth.setOn(Boolean(bluetooth?.enabled));
             refs.bluetooth.setIcon(bluetooth?.iconName ?? 'bluetooth-disabled-symbolic');
-            refs.bluetooth.setSensitive(available);
+            refs.bluetooth.opacity = available ? 255 : 170;
+            refs.bluetooth.reactive = available;
         }
 
-        // Modo avión
         if (refs.airplane) {
-            const show = Boolean(this._rfkill?.show_airplane_mode);
-            refs.airplane.row.visible = show;
-
-            if (show) {
-                const on = Boolean(this._rfkill?.airplane_mode);
-                refs.airplane.setOn(on);
-                refs.airplane.setSubtitle(on ? 'Activado' : 'Desactivado');
-                refs.airplane.setSensitive(!this._rfkill?.hw_airplane_mode);
-            }
+            const supported = Boolean(this._rfkill?.show_airplane_mode);
+            const on = Boolean(this._rfkill?.airplane_mode);
+            refs.airplane.visible = true;
+            refs.airplane.setOn(on);
+            refs.airplane.reactive = supported && !this._rfkill?.hw_airplane_mode;
+            refs.airplane.opacity = this._rfkill?.hw_airplane_mode ? 170 : 255;
         }
 
-        // Concentración
         if (refs.focus) {
             const dnd = !this._getShowBanners();
             refs.focus.setOn(dnd);
             refs.focus.setSubtitle(dnd ? 'No molestar' : 'Desactivado');
         }
 
-        // Modo oscuro
         if (refs.dark) {
             let dark = false;
             try {
-                dark = this._interfaceSettings?.get_string('color-scheme') === 'prefer-dark';
+                dark = this._interfaceSettings?.get_string('color-scheme') ===
+                    'prefer-dark';
             } catch (_e) {
                 dark = false;
             }
             refs.dark.setOn(dark);
         }
 
-        // Luz nocturna
         if (refs.night) {
             let enabled = false;
             let supported = true;
@@ -1512,35 +1661,32 @@ export class TahoeControlCenter {
                 enabled = false;
             }
             try {
-                supported = global.backend.get_monitor_manager().night_light_supported !== false;
+                supported = global.backend.get_monitor_manager()
+                    .night_light_supported !== false;
             } catch (_e) {
                 supported = true;
             }
             refs.night.setOn(enabled);
-            refs.night.setSensitive(supported);
+            refs.night.reactive = supported;
+            refs.night.opacity = supported ? 255 : 170;
         }
 
-        // Brillo
-        if (refs.brightnessCard) {
-            const scale = Main.brightnessManager?.globalScale ?? null;
-            refs.brightnessCard.visible = Boolean(scale);
-
+        const scale = Main.brightnessManager?.globalScale ?? null;
+        if (refs.brightness) {
+            refs.brightness.visible = Boolean(scale);
             if (scale) {
                 this._updatingBrightnessSlider = true;
-                refs.brightness.slider.value = scale.value;
+                refs.brightnessSlider.value = scale.value;
                 this._updatingBrightnessSlider = false;
             }
         }
 
-        // Sonido
-        if (refs.soundCard) {
+        if (refs.sound) {
             const sink = this._sink;
-            refs.soundCard.visible = Boolean(sink);
-
+            refs.sound.visible = Boolean(sink);
             if (sink) {
                 let volume = 0;
                 let muted = true;
-
                 try {
                     muted = Boolean(sink.is_muted);
                     const max = this._mixer?.get_vol_max_norm() || 1;
@@ -1551,54 +1697,65 @@ export class TahoeControlCenter {
                 }
 
                 this._updatingVolumeSlider = true;
-                refs.volume.slider.value = volume;
+                refs.soundSlider.value = volume;
                 this._updatingVolumeSlider = false;
 
-                let icon = 'audio-volume-high-symbolic';
+                let leftIcon = 'audio-volume-low-symbolic';
                 if (muted)
-                    icon = 'audio-volume-muted-symbolic';
+                    leftIcon = 'audio-volume-muted-symbolic';
                 else if (volume < 0.33)
-                    icon = 'audio-volume-low-symbolic';
+                    leftIcon = 'audio-volume-low-symbolic';
                 else if (volume < 0.66)
-                    icon = 'audio-volume-medium-symbolic';
+                    leftIcon = 'audio-volume-medium-symbolic';
+                else
+                    leftIcon = 'audio-volume-high-symbolic';
 
-                refs.volume.setIcon(icon);
+                refs.soundLeft.set_child(new St.Icon({
+                    icon_name: leftIcon,
+                    icon_size: 13,
+                    style_class: 'tahoe-cc-icon',
+                }));
+
+                if (refs.soundOutput) {
+                    const device = this._deviceForSink(sink);
+                    refs.soundOutput.setIcon(this._deviceIconName(device, sink));
+                }
             }
         }
 
-        // Reproduciendo
-        if (refs.mediaCard) {
-            const showNowPlaying = this._getBoolean('control-center-show-now-playing', true);
+        if (refs.media) {
+            const showSetting = this._getBoolean(
+                'control-center-show-now-playing', true);
             const media = this._media;
-            const visible = Boolean(showNowPlaying && media?.hasPlayer && media.title);
-            refs.mediaCard.visible = visible;
+            const hasPlayer = Boolean(showSetting && media?.hasPlayer && media.title);
 
-            if (visible) {
-                refs.mediaTitle.text = media.title || 'Reproduciendo';
-                refs.mediaArtist.text = media.artist || '';
-                refs.mediaArtist.visible = Boolean(media.artist);
-                refs.mediaPlay.setIcon(media.playing
-                    ? 'media-playback-pause-symbolic'
-                    : 'media-playback-start-symbolic');
-                refs.mediaPrevious.opacity = media.canGoPrevious ? 255 : 120;
-                refs.mediaPrevious.reactive = media.canGoPrevious;
-                refs.mediaNext.opacity = media.canGoNext ? 255 : 120;
-                refs.mediaNext.reactive = media.canGoNext;
-
+            refs.media.setEmpty(!hasPlayer);
+            if (hasPlayer) {
+                refs.media.title.text = media.title;
+                refs.media.artist.text = media.artist;
+                refs.media.artist.visible = Boolean(media.artist);
+                if (refs._mediaPlaying !== media.playing) {
+                    refs.media.setPlaying(media.playing);
+                    refs._mediaPlaying = media.playing;
+                }
+                refs.media.previous.opacity = media.canGoPrevious ? 255 : 120;
+                refs.media.previous.reactive = media.canGoPrevious;
+                refs.media.next.opacity = media.canGoNext ? 255 : 120;
+                refs.media.next.reactive = media.canGoNext;
                 this._updateArtwork(refs, media.artUrl);
+            } else {
+                refs._mediaArtUrl = null;
+                refs._mediaPlaying = null;
             }
         }
 
-        // Perfil de energía
-        if (refs.powerAction) {
+        if (refs.power) {
             const available = Boolean(this._powerProfiles?.available);
-            refs.powerAction.setVisible(available);
+            refs.power.visible = available;
             if (available) {
-                const info = this._powerProfiles.activeInfo;
-                refs.powerAction.setIcon(info.iconName);
-                refs.powerAction.label.text = 'Perfil de energía';
-                refs.powerAction.circle.accessible_name =
-                    `Perfil de energía: ${info.name}`;
+                refs.power.setIcon(this._powerProfiles.activeInfo.iconName);
+                refs.power.accessible_name =
+                    `Perfil de energía: ${this._powerProfiles.activeInfo.name}`;
             }
         }
     }
@@ -1611,25 +1768,25 @@ export class TahoeControlCenter {
 
         const url = parseArtwork(artUrl);
         if (!url) {
-            refs.mediaArt.set_style(null);
-            refs.mediaArt.remove_style_class_name('tahoe-cc-media-art-image');
-            refs.mediaArtIcon.visible = true;
+            refs.media.art.set_style(null);
+            refs.media.art.remove_style_class_name('tahoe-cc-media-art-image');
+            refs.media.artIcon.visible = true;
             return;
         }
 
         try {
-            refs.mediaArt.set_style(
+            refs.media.art.set_style(
                 `background-image: url("${escapeCssUrl(url)}");`);
-            refs.mediaArt.add_style_class_name('tahoe-cc-media-art-image');
-            refs.mediaArtIcon.visible = false;
+            refs.media.art.add_style_class_name('tahoe-cc-media-art-image');
+            refs.media.artIcon.visible = false;
         } catch (e) {
             console.error(`${LOG} No se pudo mostrar la carátula:`, e);
-            refs.mediaArtIcon.visible = true;
+            refs.media.artIcon.visible = true;
         }
     }
 
     // ------------------------------------------------------------------
-    // Detalle: Wi-Fi / Bluetooth / sonido
+    // Hojas de detalle
     // ------------------------------------------------------------------
 
     _showDetail(view) {
@@ -1638,15 +1795,6 @@ export class TahoeControlCenter {
 
         this._view = view;
         this._renderDetail();
-
-        // Una única actualización diferida para dar tiempo a que el escaneo
-        // Wi-Fi o la enumeración Bluetooth terminen.
-        if (view === 'wifi' || view === 'bluetooth') {
-            this._addTimeout(1000, () => {
-                if (this._view === view && this._ccButton?.menu.isOpen)
-                    this._renderDetail();
-            });
-        }
     }
 
     _goBack() {
@@ -1662,106 +1810,75 @@ export class TahoeControlCenter {
         this._mainRefs = null;
         this._detailRefs = {};
 
+        let result = null;
         switch (this._view) {
         case 'wifi':
-            this._renderWifiDetail();
+            result = this._buildWifiSheet({showBack: true});
             break;
         case 'bluetooth':
-            this._renderBluetoothDetail();
+            result = this._buildBluetoothSheet({showBack: true});
             break;
         case 'sound':
-            this._renderSoundDetail();
+            result = this._buildSoundSheet({showBack: true, popup: false});
             break;
         default:
             this._renderMain();
-            break;
+            return;
+        }
+
+        if (!result)
+            return;
+
+        this._ccRoot.add_child(result.sheet);
+        this._detailRefs = result.refs;
+        this._animateIn(result.sheet);
+
+        if (this._view === 'wifi' || this._view === 'bluetooth') {
+            this._addTimeout(1000, () => {
+                if (this._view === this._detailView && this._ccButton?.menu.isOpen)
+                    this._renderDetail();
+            });
+            this._detailView = this._view;
         }
     }
 
-    _createDetailCard() {
-        return new St.BoxLayout({
-            style_class: 'tahoe-cc-card tahoe-cc-detail-card',
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.FILL,
-        });
-    }
+    _buildWifiSheet({showBack = false} = {}) {
+        const refs = {};
+        const sheet = this._createSheet('tahoe-cc-sheet-wifi', 22);
 
-    _createScrollList(rows) {
-        const scroll = new St.ScrollView({
-            style_class: 'tahoe-cc-scroll',
-            hscrollbar_policy: St.PolicyType.NEVER,
-            vscrollbar_policy: St.PolicyType.AUTOMATIC,
-            overlay_scrollbars: true,
-            x_expand: true,
-        });
-
-        const content = new St.BoxLayout({
-            style_class: 'tahoe-cc-list',
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-        });
-
-        for (const row of rows)
-            content.add_child(row);
-
-        scroll.set_child(content);
-
-        const rowHeight = px(42);
-        const height = Math.min(Math.max(rows.length, 1) * rowHeight, px(286));
-
-        const holder = new St.Bin({
-            style_class: 'tahoe-cc-scroll-holder',
-            x_expand: true,
-            height,
-        });
-        holder.set_child(scroll);
-
-        return holder;
-    }
-
-    _renderWifiDetail() {
-        const refs = this._detailRefs;
-        const header = createDetailHeader('Wi‑Fi', () => this._goBack());
-        this._ccRoot.add_child(header.header);
-        refs.header = header;
-
-        const card = this._createDetailCard();
-        this._ccRoot.add_child(card);
-
-        const toggleRow = createModuleRow({
-            iconName: 'network-wireless-symbolic',
+        const header = createDetailHeader({
             title: 'Wi‑Fi',
-            onToggle: () => {
-                this._network?.toggleWifi();
-                this._addTimeout(700, () => {
-                    if (this._view === 'wifi' && this._ccButton?.menu.isOpen)
-                        this._renderDetail();
-                });
-            },
+            onBack: showBack ? () => this._goBack() : null,
+            withSwitch: true,
         });
-        card.add_child(toggleRow.row);
-        refs.wifiToggle = toggleRow;
+        refs.header = header;
+        header.toggle.setChecked(Boolean(this._network?.wifiEnabled));
+        header.toggle.connect('changed', (_switch, checked) => {
+            this._network?.setWifiEnabled(checked);
+            this._addTimeout(900, () => {
+                if (this._ccButton?.menu.isOpen)
+                    this._refreshWifiSheet(showBack);
+            });
+        });
+        sheet.add_child(header.header);
 
         const network = this._network;
-        if (!network || network.failed) {
-            card.add_child(createSectionLabel('NetworkManager no está disponible'));
-        } else if (!network.hasWifi) {
-            card.add_child(createSectionLabel('No hay adaptador Wi‑Fi en este equipo'));
-        } else if (!network.wifiEnabled) {
-            card.add_child(createSectionLabel('Wi‑Fi desactivado'));
-        } else {
-            const current = network.accessPoints.filter(ap => ap.active);
-            if (current.length > 0) {
-                const activeRow = createListRow({
-                    iconName: `network-wireless-signal-${this._signalName(current[0].strength)}-symbolic`,
-                    title: current[0].ssid,
-                    subtitle: 'Red actual',
-                    check: true,
+        const active = network?.accessPoints?.find(ap => ap.active) ?? null;
+
+        if (network && !network.failed && network.hasWifi && network.wifiEnabled) {
+            if (active) {
+                const row = createListRow({
+                    iconName: `network-wireless-signal-${signalName(active.strength)}-symbolic`,
+                    title: active.ssid,
+                    active: true,
+                    onClick: showBack ? null : null,
                 });
-                card.add_child(activeRow.button);
-                refs.activeRow = activeRow;
+                refs.activeRow = row;
+                sheet.add_child(row.button);
             }
+
+            sheet.add_child(this._createSeparator('tahoe-cc-section-separator'));
+            sheet.add_child(createSectionHeader('Otras redes'));
 
             const rows = [];
             for (const ap of network.accessPoints) {
@@ -1769,202 +1886,247 @@ export class TahoeControlCenter {
                     continue;
 
                 const row = createListRow({
-                    iconName: `network-wireless-signal-${this._signalName(ap.strength)}-symbolic`,
+                    iconName: `network-wireless-signal-${signalName(ap.strength)}-symbolic`,
                     title: ap.ssid,
-                    subtitle: ap.secure ? 'Protegida' : 'Abierta',
-                    check: false,
-                    suffixIconName: ap.secure ? 'network-wireless-encrypted-symbolic' : null,
+                    suffixIconName: ap.secure
+                        ? 'network-wireless-encrypted-symbolic'
+                        : null,
                     onClick: () => {
                         if (!ap.saved) {
                             network.openWifiSettings();
-                            this._ccButton?.menu.close();
+                            this._closeParentMenu(showBack);
                             return;
                         }
-
                         if (network.connectSaved(ap.ssid))
-                            this._ccButton?.menu.close();
+                            this._closeParentMenu(showBack);
                     },
                 });
                 rows.push(row.button);
             }
 
-            if (rows.length === 0) {
-                card.add_child(createSectionLabel('No se encontraron redes'));
-            } else {
-                card.add_child(createSectionLabel('Redes disponibles'));
-                card.add_child(this._createScrollList(rows));
-            }
-        }
-
-        card.add_child(createSeparator());
-        card.add_child(createFooterLink('Ajustes de Wi‑Fi…',
-            () => {
-                this._ccButton?.menu.close();
-                openSettingsPanel('wifi');
-            }));
-
-        this._syncDetailWifi();
-    }
-
-    _syncDetailWifi() {
-        const refs = this._detailRefs;
-        if (!refs?.wifiToggle)
-            return;
-
-        const network = this._network;
-        let subtitle = 'No disponible';
-        let on = false;
-
-        if (network && !network.failed) {
-            if (!network.hasWifi)
-                subtitle = network.ethernetConnected ? 'Ethernet' : 'No disponible';
-            else if (!network.wifiEnabled)
-                subtitle = 'Desactivado';
+            if (rows.length === 0)
+                sheet.add_child(this._createEmptyLabel('No se encontraron redes'));
             else
-                subtitle = network.wifiSsid || 'No conectado';
-
-            on = Boolean(network.hasWifi && network.wifiEnabled);
+                sheet.add_child(this._createScrollList(rows, 28, 420));
+        } else {
+            let message = 'Wi‑Fi desactivado';
+            if (!network || network.failed)
+                message = 'NetworkManager no está disponible';
+            else if (!network.hasWifi)
+                message = network.ethernetConnected
+                    ? 'Conectado por Ethernet'
+                    : 'No hay adaptador Wi‑Fi';
+            sheet.add_child(this._createEmptyLabel(message));
         }
 
-        refs.wifiToggle.setSubtitle(subtitle);
-        refs.wifiToggle.setOn(on);
-        refs.wifiToggle.setIcon(network?.wifiIconName ??
-            'network-wireless-signal-none-symbolic');
+        sheet.add_child(this._createSeparator('tahoe-cc-section-separator'));
+        sheet.add_child(this._createSheetLink('Ajustes de Wi‑Fi…', () => {
+            this._closeParentMenu(showBack);
+            openSettingsPanel('wifi');
+        }));
+
+        return {sheet, refs};
     }
 
-    _renderBluetoothDetail() {
-        const header = createDetailHeader('Bluetooth', () => this._goBack());
-        this._ccRoot.add_child(header.header);
-        this._detailRefs.header = header;
+    _refreshWifiSheet(showBack) {
+        if (showBack) {
+            if (this._view === 'wifi')
+                this._renderDetail();
+            return;
+        }
 
-        const card = this._createDetailCard();
-        this._ccRoot.add_child(card);
+        if (this._wifiButton?.menu.isOpen)
+            this._buildWifiPopover();
+    }
 
-        const toggleRow = createModuleRow({
-            iconName: 'bluetooth-active-symbolic',
+    _buildBluetoothSheet({showBack = false} = {}) {
+        const refs = {};
+        const sheet = this._createSheet('tahoe-cc-sheet-bluetooth', 22);
+
+        const header = createDetailHeader({
             title: 'Bluetooth',
-            onToggle: () => {
-                this._bluetooth?.toggle();
-                this._addTimeout(900, () => {
-                    if (this._view === 'bluetooth' && this._ccButton?.menu.isOpen)
-                        this._renderDetail();
-                });
-            },
+            onBack: showBack ? () => this._goBack() : null,
+            withSwitch: true,
         });
-        card.add_child(toggleRow.row);
+        refs.header = header;
+        header.toggle.setChecked(Boolean(this._bluetooth?.enabled));
+        header.toggle.connect('changed', (_switch, checked) => {
+            this._bluetooth?.setEnabled(checked);
+            this._addTimeout(1000, () => {
+                if (this._ccButton?.menu.isOpen)
+                    this._renderDetail();
+            });
+        });
+        sheet.add_child(header.header);
 
         const bluetooth = this._bluetooth;
         if (!bluetooth || !bluetooth.available) {
-            card.add_child(createSectionLabel('No hay adaptador Bluetooth'));
+            sheet.add_child(this._createEmptyLabel('No hay adaptador Bluetooth'));
         } else if (!bluetooth.enabled) {
-            card.add_child(createSectionLabel('Bluetooth desactivado'));
+            sheet.add_child(this._createEmptyLabel('Bluetooth desactivado'));
         } else {
             const devices = bluetooth.devices;
+            sheet.add_child(this._createSeparator('tahoe-cc-section-separator'));
+            sheet.add_child(createSectionHeader('Dispositivos'));
+
             if (devices.length === 0) {
-                card.add_child(createSectionLabel('No hay dispositivos emparejados'));
+                sheet.add_child(this._createEmptyLabel('No hay dispositivos emparejados'));
             } else {
-                card.add_child(createSectionLabel('Dispositivos'));
                 const rows = devices.map(item => createListRow({
                     iconName: item.icon,
                     title: item.name,
-                    subtitle: item.connected ? 'Conectado' : 'Desconectado',
-                    check: item.connected,
-                    onClick: () => bluetooth.toggleDevice(item),
+                    active: item.connected,
+                    onClick: () => {
+                        bluetooth.toggleDevice(item);
+                        this._addTimeout(900, () => {
+                            if (this._view === 'bluetooth' &&
+                                this._ccButton?.menu.isOpen)
+                                this._renderDetail();
+                        });
+                    },
                 }).button);
-                card.add_child(this._createScrollList(rows));
+                sheet.add_child(this._createScrollList(rows, 28, 420));
             }
         }
 
-        card.add_child(createSeparator());
-        card.add_child(createFooterLink('Ajustes de Bluetooth…',
-            () => {
-                this._ccButton?.menu.close();
-                openSettingsPanel('bluetooth');
-            }));
+        sheet.add_child(this._createSeparator('tahoe-cc-section-separator'));
+        sheet.add_child(this._createSheetLink('Ajustes de Bluetooth…', () => {
+            this._ccButton?.menu.close();
+            openSettingsPanel('bluetooth');
+        }));
 
-        let subtitle = 'No disponible';
-        let on = false;
-        if (bluetooth?.available) {
-            subtitle = bluetooth.enabled
-                ? (bluetooth.connectedDevices[0]?.name ?? 'Activado')
-                : 'Desactivado';
-            on = bluetooth.enabled;
-        }
-
-        toggleRow.setSubtitle(subtitle);
-        toggleRow.setOn(on);
-        toggleRow.setIcon(bluetooth?.iconName ?? 'bluetooth-disabled-symbolic');
+        return {sheet, refs};
     }
 
-    _renderSoundDetail() {
-        const header = createDetailHeader('Salida de sonido', () => this._goBack());
-        this._ccRoot.add_child(header.header);
-        this._detailRefs.header = header;
+    _buildSoundSheet({showBack = false, popup = false} = {}) {
+        const refs = {};
+        const sheet = this._createSheet(popup
+            ? 'tahoe-cc-sheet-sound-popup'
+            : 'tahoe-cc-sheet-sound', 22);
 
-        const card = this._createDetailCard();
-        this._ccRoot.add_child(card);
-
-        let sinks = [];
-        try {
-            sinks = this._mixer?.get_sinks() ?? [];
-        } catch (_e) {
-            sinks = [];
+        if (showBack) {
+            const header = createDetailHeader({
+                title: 'Salida de sonido',
+                onBack: () => this._goBack(),
+            });
+            refs.header = header;
+            sheet.add_child(header.header);
+        } else {
+            const titleBox = new St.BoxLayout({
+                style_class: 'tahoe-cc-sheet-title-row',
+                x_expand: true,
+            });
+            titleBox.add_child(new St.Label({
+                text: 'Sonido',
+                style_class: 'tahoe-cc-sheet-title',
+                x_expand: true,
+                x_align: Clutter.ActorAlign.START,
+            }));
+            sheet.add_child(titleBox);
         }
 
-        if (sinks.length === 0) {
-            card.add_child(createSectionLabel('No hay salidas de audio'));
-        } else {
-            card.add_child(createSectionLabel('Dispositivos'));
-            let active = null;
-            try {
-                active = this._mixer?.get_default_sink() ?? null;
-            } catch (_e) {
-                active = null;
-            }
+        const sliderRow = new St.BoxLayout({
+            style_class: 'tahoe-cc-sound-slider-row',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
 
-            const rows = sinks.map(sink => {
-                const name = sink.description || sink.name || 'Salida de audio';
+        const outputDevice = this._deviceForSink(this._sink);
+        const outputIcon = new St.Icon({
+            icon_name: this._sinkIconName(this._sink, true),
+            icon_size: 14,
+            style_class: 'tahoe-cc-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._setDeviceIcon(outputIcon, outputDevice, this._sink);
+        sliderRow.add_child(outputIcon);
+
+        const slider = new TahoeSlider(0);
+        slider.maximum_value = 1;
+        slider.accessible_name = 'Volumen';
+        slider.x_expand = true;
+        if (this._sink) {
+            try {
+                const max = this._mixer?.get_vol_max_norm() || 1;
+                slider.value = this._sink.is_muted
+                    ? 0
+                    : this._sink.volume / max;
+            } catch (_e) {
+                slider.value = 0;
+            }
+        }
+        slider.connect('notify::value', () => {
+            if (this._updatingVolumeSlider)
+                return;
+            this._setVolumeFromSlider(slider.value);
+        });
+        sliderRow.add_child(slider);
+        sheet.add_child(sliderRow);
+
+        sheet.add_child(this._createSeparator('tahoe-cc-section-separator'));
+        sheet.add_child(createSectionHeader('Salida', false));
+
+        const devices = this._getOutputDevices();
+
+        if (devices.length === 0) {
+            sheet.add_child(this._createEmptyLabel('No hay salidas de audio'));
+        } else {
+            const rows = devices.map(item => {
                 const row = createListRow({
-                    iconName: 'audio-speakers-symbolic',
-                    title: name,
-                    subtitle: sink.origin || '',
-                    check: sink === active,
-                    onClick: () => {
-                        try {
-                            this._mixer.change_output(sink);
-                        } catch (e) {
-                            console.error(`${LOG} No se pudo cambiar la salida:`, e);
-                        }
-                    },
+                    iconName: item.iconName,
+                    gicon: item.gicon,
+                    title: item.description,
+                    subtitle: item.origin,
+                    active: item.active,
+                    activeWhite: item.active,
+                    large: true,
+                    check: item.active,
+                    onClick: () => this._changeOutput(item.sink),
                 });
+                this._attachBluetoothBattery(item.sink, row, item.origin);
                 return row.button;
             });
-
-            card.add_child(this._createScrollList(rows));
+            sheet.add_child(this._createScrollList(rows, 40, 300));
         }
 
-        card.add_child(createSeparator());
-        card.add_child(createFooterLink('Ajustes de sonido…',
-            () => {
+        sheet.add_child(this._createSeparator('tahoe-cc-section-separator'));
+        const settings = this._createSheetLink('Ajustes de sonido…', () => {
+            if (popup)
+                this._soundButton?.menu.close();
+            else
                 this._ccButton?.menu.close();
-                openSettingsPanel('sound');
-            }));
+            openSettingsPanel('sound');
+        });
+        sheet.add_child(settings);
+
+        refs.slider = slider;
+        refs.outputIcon = outputIcon;
+        return {sheet, refs};
     }
 
-    _signalName(strength) {
-        if (strength < 20)
-            return 'none';
-        if (strength < 40)
-            return 'weak';
-        if (strength < 50)
-            return 'ok';
-        if (strength < 80)
-            return 'good';
-        return 'excellent';
+    _createEmptyLabel(text) {
+        const box = new St.BoxLayout({
+            style_class: 'tahoe-cc-sheet-padded',
+            x_expand: true,
+        });
+        box.add_child(new St.Label({
+            text,
+            style_class: 'tahoe-cc-empty-label',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.START,
+        }));
+        return box;
+    }
+
+    _closeParentMenu(fromDetail) {
+        if (fromDetail)
+            this._ccButton?.menu.close();
+        else
+            this._wifiButton?.menu.close();
     }
 
     // ------------------------------------------------------------------
-    // Menú de batería
+    // Popovers de la barra
     // ------------------------------------------------------------------
 
     _buildBatteryPopover() {
@@ -1973,75 +2135,58 @@ export class TahoeControlCenter {
             return;
 
         this._clearChildren(box);
+        const sheet = this._createSheet('tahoe-cc-sheet-battery', 22);
 
         const battery = this._battery;
         if (!battery?.present) {
-            box.add_child(createSectionLabel('No hay batería'));
+            sheet.add_child(this._createEmptyLabel('No hay batería'));
+            box.add_child(sheet);
             return;
         }
 
         const header = new St.BoxLayout({
-            style_class: 'tahoe-cc-popover-header',
+            style_class: 'tahoe-cc-battery-popover-header',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
-
-        header.add_child(new St.Icon({
-            icon_name: battery.iconName,
-            icon_size: 22,
-            style_class: 'tahoe-cc-popover-header-icon',
-            y_align: Clutter.ActorAlign.CENTER,
-        }));
-
-        const headerLabels = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-            style_class: 'tahoe-cc-popover-header-labels',
-        });
-        headerLabels.add_child(new St.Label({
+        header.add_child(new St.Label({
             text: 'Batería',
-            style_class: 'tahoe-cc-popover-title',
+            style_class: 'tahoe-cc-sheet-title',
+            x_expand: true,
             x_align: Clutter.ActorAlign.START,
         }));
-        headerLabels.add_child(new St.Label({
-            text: battery.powerSource,
-            style_class: 'tahoe-cc-subtitle',
-            x_align: Clutter.ActorAlign.START,
-        }));
-        header.add_child(headerLabels);
-
         header.add_child(new St.Label({
             text: `${battery.percentage}%`,
             style_class: 'tahoe-cc-battery-percentage',
             y_align: Clutter.ActorAlign.CENTER,
         }));
+        sheet.add_child(header);
 
-        box.add_child(header);
-        box.add_child(createSeparator());
+        const source = new St.Label({
+            text: `Fuente de alimentación: ${battery.powerSource || '—'}`,
+            style_class: 'tahoe-cc-info-line',
+            x_align: Clutter.ActorAlign.START,
+            x_expand: true,
+        });
+        source.clutter_text.set_ellipsize(Pango.EllipsizeMode.END);
+        sheet.add_child(source);
 
-        const sourceRow = this._createPopoverInfoRow('Fuente de alimentación',
-            battery.powerSource || '—');
-        box.add_child(sourceRow);
+        let timeText = '';
+        if (battery.fullyCharged)
+            timeText = 'Batería llena';
+        else if (battery.charging)
+            timeText = formatDuration(battery.timeRemaining) || 'Cargando…';
+        else
+            timeText = formatDuration(battery.timeRemaining) || 'Calculando…';
 
-        let timeLabel;
-        if (battery.fullyCharged) {
-            timeLabel = this._createPopoverInfoRow('Estado', 'Batería llena');
-        } else if (battery.charging) {
-            const value = formatDuration(battery.timeRemaining);
-            timeLabel = this._createPopoverInfoRow('Tiempo para cargar',
-                value || 'Cargando…');
-        } else {
-            const value = formatDuration(battery.timeRemaining);
-            timeLabel = this._createPopoverInfoRow('Tiempo restante',
-                value || 'Calculando…');
-        }
-        box.add_child(timeLabel);
+        sheet.add_child(this._createInfoRow(
+            battery.charging ? 'Tiempo para cargar' : 'Tiempo restante',
+            timeText));
 
         const profiles = this._powerProfiles;
         if (profiles?.available && profiles.profiles.length > 0) {
-            box.add_child(createSeparator());
-            box.add_child(createSectionLabel('Perfil de energía'));
+            sheet.add_child(this._createSeparator('tahoe-cc-section-separator'));
+            sheet.add_child(createSectionHeader('Perfil de energía', false));
 
             for (const profile of profiles.profiles) {
                 const info = PROFILE_INFO[profile];
@@ -2051,23 +2196,26 @@ export class TahoeControlCenter {
                 const row = createListRow({
                     iconName: info.iconName,
                     title: info.name,
+                    active: profile === profiles.activeProfile,
+                    activeWhite: true,
+                    large: true,
                     check: profile === profiles.activeProfile,
                     onClick: () => profiles.setProfile(profile),
                 });
-                box.add_child(row.button);
+                sheet.add_child(row.button);
             }
         }
 
-        box.add_child(createSeparator());
-
-        const settingsLink = createFooterLink('Ajustes de batería…', () => {
+        sheet.add_child(this._createSeparator('tahoe-cc-section-separator'));
+        sheet.add_child(this._createSheetLink('Ajustes de batería…', () => {
             this._batteryButton?.menu.close();
             openSettingsPanel('power');
-        });
-        box.add_child(settingsLink);
+        }));
+
+        box.add_child(sheet);
     }
 
-    _createPopoverInfoRow(title, value) {
+    _createInfoRow(title, value) {
         const row = new St.BoxLayout({
             style_class: 'tahoe-cc-info-row',
             x_expand: true,
@@ -2087,169 +2235,429 @@ export class TahoeControlCenter {
         return row;
     }
 
-    // ------------------------------------------------------------------
-    // Menú Wi-Fi de la barra
-    // ------------------------------------------------------------------
-
     _buildWifiPopover() {
         const box = this._wifiPopoverBox;
         if (!box)
             return;
 
         this._clearChildren(box);
+        const result = this._buildWifiSheet({showBack: false});
+        box.add_child(result.sheet);
+    }
 
-        const network = this._network;
+    _buildSoundPopover() {
+        const box = this._soundPopoverBox;
+        if (!box)
+            return;
 
-        const header = createModuleRow({
-            iconName: network?.wifiIconName ?? 'network-wireless-signal-none-symbolic',
-            title: 'Wi‑Fi',
-            onToggle: () => {
-                network?.toggleWifi();
-                this._addTimeout(900, () => {
-                    if (this._wifiButton?.menu.isOpen)
-                        this._buildWifiPopover();
-                });
-            },
-        });
-        box.add_child(header.row);
+        this._clearChildren(box);
+        const result = this._buildSoundSheet({showBack: false, popup: true});
+        box.add_child(result.sheet);
+        this._soundPopoverRefs = result.refs;
+    }
 
-        if (network && !network.failed && network.hasWifi && network.wifiEnabled) {
-            const active = network.accessPoints.find(ap => ap.active);
-            if (active) {
-                box.add_child(createListRow({
-                    iconName: `network-wireless-signal-${this._signalName(active.strength)}-symbolic`,
-                    title: active.ssid,
-                    subtitle: 'Red actual',
-                    check: true,
-                }).button);
+    _updateSoundPopover() {
+        const refs = this._soundPopoverRefs;
+        if (!refs || !this._soundButton?.menu.isOpen)
+            return;
+
+        if (this._sink) {
+            try {
+                const max = this._mixer?.get_vol_max_norm() || 1;
+                const value = this._sink.is_muted ? 0 : this._sink.volume / max;
+                this._updatingVolumeSlider = true;
+                refs.slider.value = value;
+                this._updatingVolumeSlider = false;
+            } catch (_e) {
+                this._updatingVolumeSlider = false;
             }
+            this._setDeviceIcon(refs.outputIcon,
+                this._deviceForSink(this._sink), this._sink);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Sonido
+    // ------------------------------------------------------------------
+
+    _sinkIconName(sink, deviceIcon = false) {
+        if (!sink)
+            return 'audio-volume-medium-symbolic';
+
+        let formFactor = '';
+        try {
+            formFactor = `${sink.get_form_factor?.() ?? ''}`.toLowerCase();
+        } catch (_e) {
+            formFactor = '';
         }
 
-        if (!network || network.failed) {
-            box.add_child(createSectionLabel('NetworkManager no está disponible'));
-        } else if (!network.hasWifi) {
-            box.add_child(createSectionLabel(
-                network.ethernetConnected
-                    ? 'Conectado por Ethernet'
-                    : 'No hay adaptador Wi‑Fi'));
-        } else if (!network.wifiEnabled) {
-            box.add_child(createSectionLabel('Wi‑Fi desactivado'));
-        } else {
-            const aps = network.accessPoints
-                .filter(ap => !ap.active)
-                .slice(0, 8);
-            if (aps.length === 0) {
-                box.add_child(createSectionLabel('Buscando redes…'));
-            } else {
-                box.add_child(createSectionLabel('Redes'));
-                for (const ap of aps) {
-                    const row = createListRow({
-                        iconName: `network-wireless-signal-${this._signalName(ap.strength)}-symbolic`,
-                        title: ap.ssid,
-                        subtitle: ap.secure ? 'Protegida' : 'Abierta',
-                        check: false,
-                        suffixIconName: ap.secure ? 'network-wireless-encrypted-symbolic' : null,
-                        onClick: () => {
-                            if (!ap.saved) {
-                                network.openWifiSettings();
-                                this._wifiButton?.menu.close();
-                                return;
-                            }
-                            if (network.connectSaved(ap.ssid))
-                                this._wifiButton?.menu.close();
-                        },
+        const text = `${sink.description ?? ''} ${sink.origin ?? ''} ${sink.name ?? ''}`
+            .toLowerCase();
+
+        if (deviceIcon) {
+            if (formFactor.includes('headset') || formFactor.includes('headphone') ||
+                text.includes('bluetooth') || text.includes('head'))
+                return 'audio-headphones-symbolic';
+            if (text.includes('hdmi') || text.includes('display'))
+                return 'video-display-symbolic';
+            return 'audio-speakers-symbolic';
+        }
+
+        let volume = 0;
+        let muted = true;
+        try {
+            muted = Boolean(sink.is_muted);
+            const max = this._mixer?.get_vol_max_norm() || 1;
+            volume = muted ? 0 : sink.volume / max;
+        } catch (_e) {
+            volume = 0;
+            muted = true;
+        }
+
+        if (formFactor.includes('headset') || formFactor.includes('headphone') ||
+            text.includes('bluetooth') || text.includes('head'))
+            return 'audio-headphones-symbolic';
+
+        if (muted)
+            return 'audio-volume-muted-symbolic';
+        if (volume < 0.33)
+            return 'audio-volume-low-symbolic';
+        if (volume < 0.66)
+            return 'audio-volume-medium-symbolic';
+        return 'audio-volume-high-symbolic';
+    }
+
+    _isBluetoothSink(sink) {
+        if (!sink)
+            return false;
+        try {
+            const formFactor = `${sink.get_form_factor?.() ?? ''}`.toLowerCase();
+            const text = `${sink.description ?? ''} ${sink.origin ?? ''} ${sink.name ?? ''}`
+                .toLowerCase();
+            return formFactor.includes('headset') ||
+                formFactor.includes('headphone') ||
+                text.includes('bluetooth') ||
+                text.includes('head');
+        } catch (_e) {
+            return false;
+        }
+    }
+
+    _attachBluetoothBattery(sink, row, origin = '') {
+        // La batería de periféricos Bluetooth se expone mediante UPower.
+        // Se consulta de forma diferida y sólo si la fila sigue viva.
+        if (!this._isBluetoothSink(sink))
+            return;
+
+        this._findBluetoothBattery(sink).then(text => {
+            if (!text || !row.button.get_stage())
+                return;
+            row.setSubtitle(origin ? `${origin} · ${text}` : text);
+        }).catch(_e => {
+            // Sin batería disponible.
+        });
+    }
+
+    async _findBluetoothBattery(sink) {
+        if (!this._upowerCache) {
+            this._upowerCache = await this._readUPowerDevices();
+            this._addTimeout(15000, () => {
+                this._upowerCache = null;
+            });
+        }
+
+        const text = `${sink.description ?? ''} ${sink.origin ?? ''} ${sink.name ?? ''}`
+            .toLowerCase();
+        const match = this._upowerCache.find(device => {
+            const model = `${device.model ?? ''} ${device.nativePath ?? ''}`.toLowerCase();
+            if (!model)
+                return false;
+            return model.split(/[\s\-_/]+/).some(token =>
+                token.length > 3 && text.includes(token));
+        });
+
+        if (!match)
+            return '';
+
+        return `Batería ${Math.round(match.percentage)} %`;
+    }
+
+    async _readUPowerDevices() {
+        try {
+            const result = await new Promise((resolve, reject) => {
+                Gio.DBus.system.call(
+                    'org.freedesktop.UPower',
+                    '/org/freedesktop/UPower',
+                    'org.freedesktop.UPower',
+                    'EnumerateDevices',
+                    null,
+                    null,
+                    Gio.DBusCallFlags.NONE,
+                    -1,
+                    null,
+                    (connection, res) => {
+                        try {
+                            resolve(connection.call_finish(res));
+                        } catch (e) {
+                            reject(e);
+                        }
                     });
-                    box.add_child(row.button);
+            });
+
+            const paths = result.deepUnpack()[0] ?? [];
+            const devices = [];
+            for (const path of paths) {
+                try {
+                    const propsVariant = await new Promise((resolve, reject) => {
+                        Gio.DBus.system.call(
+                            'org.freedesktop.DBus',
+                            path,
+                            'org.freedesktop.DBus.Properties',
+                            'GetAll',
+                            new GLib.Variant('(s)', ['org.freedesktop.UPower.Device']),
+                            null,
+                            Gio.DBusCallFlags.NONE,
+                            -1,
+                            null,
+                            (connection, res) => {
+                                try {
+                                    resolve(connection.call_finish(res));
+                                } catch (e) {
+                                    reject(e);
+                                }
+                            });
+                    });
+
+                    const [props] = propsVariant.deepUnpack();
+                    const type = props.Type?.deepUnpack?.() ?? props.Type;
+                    if (Number(type) !== 2)
+                        continue;
+
+                    devices.push({
+                        model: props.Model?.deepUnpack?.() ?? '',
+                        nativePath: props.NativePath?.deepUnpack?.() ?? '',
+                        percentage: Number(props.Percentage?.deepUnpack?.() ?? 0),
+                    });
+                } catch (_e) {
+                    // Ignorar dispositivos sin propiedades.
                 }
             }
-        }
-
-        box.add_child(createSeparator());
-        box.add_child(createFooterLink('Ajustes de Wi‑Fi…', () => {
-            this._wifiButton?.menu.close();
-            openSettingsPanel('wifi');
-        }));
-
-        // Subtítulo del conmutador: red actual / desactivado.
-        let subtitle = 'No disponible';
-        let on = false;
-        if (network && !network.failed) {
-            on = Boolean(network.hasWifi && network.wifiEnabled);
-            if (!network.hasWifi)
-                subtitle = network.ethernetConnected ? 'Ethernet' : 'No disponible';
-            else if (!network.wifiEnabled)
-                subtitle = 'Desactivado';
-            else
-                subtitle = network.wifiSsid || 'No conectado';
-        }
-        header.setSubtitle(subtitle);
-        header.setOn(on);
-    }
-
-    // ------------------------------------------------------------------
-    // Acciones
-    // ------------------------------------------------------------------
-
-    _getShowBanners() {
-        try {
-            return this._notificationSettings?.get_boolean('show-banners') ?? true;
-        } catch (_e) {
-            return true;
-        }
-    }
-
-    _toggleDoNotDisturb() {
-        if (!this._notificationSettings)
-            return;
-
-        try {
-            const show = this._notificationSettings.get_boolean('show-banners');
-            this._notificationSettings.set_boolean('show-banners', !show);
-            this._queueSync();
+            return devices;
         } catch (e) {
-            console.error(`${LOG} No se pudo cambiar No molestar:`, e);
+            console.debug(`${LOG} UPower no enumeró dispositivos: ${e.message}`);
+            return [];
         }
     }
 
-    _toggleDarkMode() {
-        if (!this._interfaceSettings)
+    _deviceForSink(sink) {
+        if (!sink || !this._mixer)
+            return null;
+        try {
+            return this._mixer.lookup_device_from_stream(sink) ?? null;
+        } catch (_e) {
+            return null;
+        }
+    }
+
+    _deviceIconName(device, sink) {
+        let icon = '';
+        try {
+            icon = device?.get_icon_name?.() ?? '';
+        } catch (_e) {
+            icon = '';
+        }
+        if (icon) {
+            if (icon.endsWith('-symbolic'))
+                return icon;
+            const known = new Set([
+                'audio-speakers', 'audio-card', 'audio-headphones',
+                'audio-headset', 'video-display', 'bluetooth-active',
+                'audio-input-microphone',
+            ]);
+            if (known.has(icon))
+                return `${icon}-symbolic`;
+        }
+
+        let formFactor = '';
+        try {
+            formFactor = `${sink?.get_form_factor?.() ?? ''}`.toLowerCase();
+        } catch (_e) {
+            formFactor = '';
+        }
+
+        let port = '';
+        try {
+            port = `${device?.get_port?.() ?? ''} ${device?.port_name ?? ''}`.toLowerCase();
+        } catch (_e) {
+            port = '';
+        }
+
+        const text = `${port} ${device?.get_description?.() ?? ''} ` +
+            `${device?.get_origin?.() ?? ''} ${sink?.description ?? ''} ` +
+            `${sink?.name ?? ''}`.toLowerCase();
+
+        if (formFactor.includes('headset') || formFactor.includes('headphone') ||
+            text.includes('headphone') || text.includes('headset') ||
+            text.includes('auricular'))
+            return 'audio-headphones-symbolic';
+        if (text.includes('hdmi') || text.includes('displayport') ||
+            text.includes('display'))
+            return 'video-display-symbolic';
+        if (text.includes('bluetooth'))
+            return 'bluetooth-active-symbolic';
+        if (text.includes('usb'))
+            return 'audio-card-symbolic';
+        return 'audio-speakers-symbolic';
+    }
+
+    _setDeviceIcon(iconActor, device, sink) {
+        if (!iconActor)
             return;
 
-        try {
-            const dark = this._interfaceSettings.get_string('color-scheme') ===
-                'prefer-dark';
+        const iconName = this._deviceIconName(device, sink);
+        if (iconName) {
+            iconActor.gicon = null;
+            iconActor.icon_name = iconName;
+            return;
+        }
 
+        try {
+            const gicon = device?.get_gicon?.() ?? null;
+            if (gicon) {
+                iconActor.icon_name = null;
+                iconActor.gicon = gicon;
+            }
+        } catch (_e) {
+            // Sin icono.
+        }
+    }
+
+    _getOutputDevices() {
+        const sinks = this._getSinks();
+        const byKey = new Map();
+
+        for (const sink of sinks) {
+            const device = this._deviceForSink(sink);
+            let description = '';
+            let origin = '';
             try {
-                Main.layoutManager.screenTransition?.run();
+                description = device?.get_description?.() ?? '';
+                origin = device?.get_origin?.() ?? '';
             } catch (_e) {
-                // Sin transición disponible.
+                description = '';
+                origin = '';
             }
 
-            this._interfaceSettings.set_string('color-scheme',
-                dark ? 'default' : 'prefer-dark');
-            this._queueSync();
+            if (!description)
+                description = sink.description || sink.name || 'Salida de audio';
+            if (!origin)
+                origin = sink.origin || '';
+
+            const active = this._sameSink(sink, this._sink);
+            const key = `${description}\u0000${origin}`;
+            const previous = byKey.get(key);
+
+            // Preferimos la entrada activa si dos sinks comparten dispositivo.
+            if (previous && !active)
+                continue;
+
+            byKey.set(key, {
+                sink,
+                device,
+                description,
+                origin,
+                iconName: this._deviceIconName(device, sink),
+                gicon: (() => {
+                    try {
+                        return device?.get_gicon?.() ?? null;
+                    } catch (_e) {
+                        return null;
+                    }
+                })(),
+                active,
+            });
+        }
+
+        return [...byKey.values()];
+    }
+
+    _sameSink(a, b) {
+        if (!a || !b)
+            return false;
+        if (a === b)
+            return true;
+        try {
+            if (a.name && b.name && a.name === b.name)
+                return true;
+            if (typeof a.get_id === 'function' && typeof b.get_id === 'function' &&
+                a.get_id() === b.get_id())
+                return true;
+        } catch (_e) {
+            // Ignorar.
+        }
+        return false;
+    }
+
+    _getSinks() {
+        let sinks = [];
+        try {
+            sinks = this._mixer?.get_sinks() ?? [];
+        } catch (_e) {
+            sinks = [];
+        }
+
+        if (this._sink && !sinks.some(sink => this._sameSink(sink, this._sink)))
+            sinks = [this._sink, ...sinks];
+
+        return sinks;
+    }
+
+    _changeOutput(sink) {
+        try {
+            this._mixer.change_output(sink);
+            this._addTimeout(400, () => {
+                if (this._soundButton?.menu.isOpen)
+                    this._buildSoundPopover();
+                if (this._view === 'sound' && this._ccButton?.menu.isOpen)
+                    this._renderDetail();
+            });
         } catch (e) {
-            console.error(`${LOG} No se pudo cambiar el modo oscuro:`, e);
+            console.error(`${LOG} No se pudo cambiar la salida de audio:`, e);
         }
     }
 
-    _toggleNightLight() {
-        if (!this._colorSettings)
+    _onSoundScroll(event) {
+        if (!this._sink)
             return;
 
-        try {
-            const enabled = this._colorSettings.get_boolean('night-light-enabled');
-            this._colorSettings.set_boolean('night-light-enabled', !enabled);
-            this._queueSync();
-        } catch (e) {
-            console.error(`${LOG} No se pudo cambiar la luz nocturna:`, e);
+        let delta = 0;
+        const direction = event.get_scroll_direction();
+        if (direction === Clutter.ScrollDirection.UP)
+            delta = 0.05;
+        else if (direction === Clutter.ScrollDirection.DOWN)
+            delta = -0.05;
+        else if (direction === Clutter.ScrollDirection.SMOOTH) {
+            const [, dy] = event.get_scroll_delta();
+            delta = -dy * 0.05;
         }
+
+        if (delta === 0)
+            return;
+
+        let current = 0;
+        try {
+            const max = this._mixer?.get_vol_max_norm() || 1;
+            current = this._sink.is_muted ? 0 : this._sink.volume / max;
+        } catch (_e) {
+            current = 0;
+        }
+
+        this._setVolumeFromSlider(Math.clamp(current + delta, 0, 1));
     }
 
     _toggleMute() {
         if (!this._sink)
             return;
-
         try {
             this._sink.change_is_muted(!this._sink.is_muted);
         } catch (e) {
@@ -2275,8 +2683,64 @@ export class TahoeControlCenter {
                     this._sink.change_is_muted(false);
             }
             this._sink.push_volume();
+            this._updateSoundPopover();
         } catch (e) {
             console.error(`${LOG} No se pudo cambiar el volumen:`, e);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Acciones
+    // ------------------------------------------------------------------
+
+    _getShowBanners() {
+        try {
+            return this._notificationSettings?.get_boolean('show-banners') ?? true;
+        } catch (_e) {
+            return true;
+        }
+    }
+
+    _toggleDoNotDisturb() {
+        if (!this._notificationSettings)
+            return;
+        try {
+            const show = this._notificationSettings.get_boolean('show-banners');
+            this._notificationSettings.set_boolean('show-banners', !show);
+            this._queueSync();
+        } catch (e) {
+            console.error(`${LOG} No se pudo cambiar No molestar:`, e);
+        }
+    }
+
+    _toggleDarkMode() {
+        if (!this._interfaceSettings)
+            return;
+        try {
+            const dark = this._interfaceSettings.get_string('color-scheme') ===
+                'prefer-dark';
+            try {
+                Main.layoutManager.screenTransition?.run();
+            } catch (_e) {
+                // Sin transición disponible.
+            }
+            this._interfaceSettings.set_string('color-scheme',
+                dark ? 'default' : 'prefer-dark');
+            this._queueSync();
+        } catch (e) {
+            console.error(`${LOG} No se pudo cambiar el modo oscuro:`, e);
+        }
+    }
+
+    _toggleNightLight() {
+        if (!this._colorSettings)
+            return;
+        try {
+            const enabled = this._colorSettings.get_boolean('night-light-enabled');
+            this._colorSettings.set_boolean('night-light-enabled', !enabled);
+            this._queueSync();
+        } catch (e) {
+            console.error(`${LOG} No se pudo cambiar la luz nocturna:`, e);
         }
     }
 
@@ -2316,7 +2780,7 @@ export class TahoeControlCenter {
     }
 
     // ------------------------------------------------------------------
-    // Sincronización general
+    // Sincronización
     // ------------------------------------------------------------------
 
     _syncAll() {
@@ -2327,12 +2791,9 @@ export class TahoeControlCenter {
 
         if (this._view === 'main' && this._mainRefs)
             this._syncMainView();
-        else if (this._view === 'wifi')
-            this._syncDetailWifi();
     }
 
     _updatePanelButtons() {
-        // Batería
         if (this._batteryButton) {
             const battery = this._battery;
             const present = Boolean(battery?.present);
@@ -2346,30 +2807,42 @@ export class TahoeControlCenter {
             if (present) {
                 const showPercent = this._getBoolean(
                     'control-center-show-battery-percent', true);
-
                 this._batteryLabel.text = `${battery.percentage}%`;
                 this._batteryLabel.visible = showPercent;
-                this._batteryIcon.icon_name = battery.iconName;
+                this._batteryIcon.setLevel(battery.percentage / 100);
+                this._batteryIcon.setCharging(battery.charging);
             }
         }
 
-        // Wi-Fi
+        if (this._soundButton) {
+            const visible = Boolean(this._sink && this._showSoundIcon);
+            try {
+                this._soundButton.container.visible = visible;
+            } catch (_e) {
+                // Ignorar.
+            }
+
+            if (visible) {
+                this._soundPanelIcon.icon_name =
+                    this._sinkIconName(this._sink, false);
+            }
+
+            if (this._soundButton.menu.isOpen)
+                this._updateSoundPopover();
+        }
+
         if (this._wifiButton) {
             const network = this._network;
             const visible = Boolean(network && !network.failed);
-
             try {
                 this._wifiButton.container.visible = visible;
             } catch (_e) {
                 // Ignorar.
             }
-
             if (visible)
                 this._wifiPanelIcon.icon_name = network.wifiIconName;
-
         }
 
-        // El botón del Centro de control siempre está visible.
         if (this._ccButton) {
             try {
                 this._ccButton.container.visible = true;
@@ -2394,8 +2867,8 @@ export class TahoeControlCenter {
 
         this._restoreQuickSettingsShortcut();
 
-        // Cerrar los menús antes de destruir sus botones.
-        for (const button of [this._ccButton, this._batteryButton, this._wifiButton]) {
+        for (const button of [this._ccButton, this._batteryButton,
+            this._soundButton, this._wifiButton]) {
             try {
                 button?.menu?.close();
             } catch (_e) {
@@ -2405,19 +2878,33 @@ export class TahoeControlCenter {
 
         this._removePanelButton(ROLES.controlCenter, this._ccButton);
         this._removePanelButton(ROLES.battery, this._batteryButton);
+        this._removePanelButton(ROLES.sound, this._soundButton);
         this._removePanelButton(ROLES.wifi, this._wifiButton);
 
         this._ccButton = null;
         this._batteryButton = null;
+        this._soundButton = null;
         this._wifiButton = null;
         this._ccRoot = null;
         this._batteryPopoverBox = null;
         this._wifiPopoverBox = null;
+        this._soundPopoverBox = null;
+        this._soundPopoverRefs = null;
         this._mainRefs = null;
         this._detailRefs = null;
         this._batteryLabel = null;
         this._batteryIcon = null;
+        this._soundPanelIcon = null;
         this._wifiPanelIcon = null;
+
+        for (const actor of [...this._glassActors]) {
+            try {
+                actor.remove_all_effects?.();
+            } catch (_e) {
+                // Ignorar.
+            }
+        }
+        this._glassActors.clear();
 
         this._restoreQuickSettingsIndicators();
 
@@ -2480,6 +2967,7 @@ export class TahoeControlCenter {
         this._notificationSettings = null;
         this._colorSettings = null;
         this._panel = null;
+        this._extension = null;
 
         this._unloadStylesheet();
     }

@@ -12,6 +12,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 
 import {TahoeMenuBar} from './menubar/menuBar.js';
+import {attachUpdatesBadge} from './menubar/updates.js';
 import {TahoeControlCenter} from './controlCenter/controlCenter.js';
 
 const APPLE_ROLE = 'tahoeAppleMenu';
@@ -318,38 +319,65 @@ export default class TahoeTopBarExtension extends Extension {
         const menu = this._appleButton.menu;
         menu.removeAll();
 
-        this._addMenuItem(_('Acerca de este Mac'), null, () => this._openAbout());
+        this._addMenuItem(_('Acerca de este Mac'), null,
+            () => this._openAbout(), 'computer-symbolic');
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        this._addMenuItem(_('Ajustes del Sistema…'), null, () => this._openSettings());
-        this._addMenuItem(_('App Store…'), null, () => this._openAppStore());
+        this._addMenuItem(_('Ajustes del Sistema…'), null,
+            () => this._openSettings(), 'emblem-system-symbolic');
+        this._addMenuItem(_('App Store…'), null,
+            () => this._openAppStore(), 'system-software-install-symbolic',
+            {updatesBadge: true});
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         this._recentMenuItem = new PopupMenu.PopupSubMenuMenuItem(_('Ítems recientes'));
+        this._recentMenuItem.add_style_class_name('tahoe-apple-menu-item');
+        this._recentMenuItem.insert_child_at_index(new St.Icon({
+            style_class: 'tahoe-apple-menu-icon',
+            icon_name: 'document-open-recent-symbolic',
+            icon_size: 16,
+            y_align: Clutter.ActorAlign.CENTER,
+        }), 1);
         menu.addMenuItem(this._recentMenuItem);
         this._rebuildRecent();
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        this._addMenuItem(_('Forzar salida…'), '⌥⌘⎋', () => this._openForceQuit());
+        this._addMenuItem(_('Forzar salida…'), '⌥⌘⎋',
+            () => this._openForceQuit(), 'process-stop-symbolic');
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        this._addMenuItem(_('Reposo'), null, () => this._suspend());
-        this._addMenuItem(_('Reiniciar…'), null, () => this._reboot());
-        this._addMenuItem(_('Apagar…'), null, () => this._shutdown());
+        this._addMenuItem(_('Reposo'), null,
+            () => this._suspend(), 'weather-clear-night-symbolic');
+        this._addMenuItem(_('Reiniciar…'), null,
+            () => this._reboot(), 'system-reboot-symbolic');
+        this._addMenuItem(_('Apagar…'), null,
+            () => this._shutdown(), 'system-shutdown-symbolic');
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        this._addMenuItem(_('Bloquear pantalla'), '⌃⌘Q', () => this._lockScreen());
+        this._addMenuItem(_('Bloquear pantalla'), '⌃⌘Q',
+            () => this._lockScreen(), 'system-lock-screen-symbolic');
         const logoutLabel = _('Cerrar sesión de “%s”…')
             .replace('%s', this._getRealName());
-        this._addMenuItem(logoutLabel, '⇧⌘Q', () => this._logout());
+        this._addMenuItem(logoutLabel, '⇧⌘Q',
+            () => this._logout(), 'avatar-default-symbolic');
     }
 
-    _addMenuItem(text, shortcut, callback) {
+    _addMenuItem(text, shortcut, callback, iconName = null, options = {}) {
         const item = new PopupMenu.PopupMenuItem(text, {
             reactive: typeof callback === 'function',
         });
 
+        item.add_style_class_name('tahoe-apple-menu-item');
         item.label.x_expand = true;
+
+        if (iconName) {
+            item.insert_child_at_index(new St.Icon({
+                style_class: 'tahoe-apple-menu-icon',
+                icon_name: iconName,
+                icon_size: 16,
+                y_align: Clutter.ActorAlign.CENTER,
+            }), 1);
+        }
 
         if (shortcut) {
             const shortcutLabel = new St.Label({
@@ -359,6 +387,9 @@ export default class TahoeTopBarExtension extends Extension {
             });
             item.add_child(shortcutLabel);
         }
+
+        if (options.updatesBadge)
+            attachUpdatesBadge(this._appleButton.menu, item);
 
         if (typeof callback === 'function') {
             item.connect('activate', () => {

@@ -1,8 +1,6 @@
 /* ==========================================================================
-   Tahoe Top Bar — Centro de control (macOS Tahoe / macOS 26)
-
-   Todos los selectores están limitados a los botones y menús propios del
-   módulo (.tahoe-cc-*), para no alterar otros menús de GNOME Shell.
+   Tahoe Top Bar — Centro de control (macOS Tahoe)
+   Módulos de cristal flotantes, sin contenedor de menú.
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -11,22 +9,36 @@
 
 #panel.tahoe-panel .tahoe-cc-panel-button {
     padding: 0 7px;
-    -natural-hpadding: 7px;
+    -natural-hpadding: 8px;
     -minimum-hpadding: 4px;
+    border-radius: 999px;
+}
+
+#panel.tahoe-panel .tahoe-cc-panel-button:active,
+#panel.tahoe-panel .tahoe-cc-panel-button.tahoe-cc-open {
+    background-color: rgba(255, 255, 255, 0.28) !important;
+    box-shadow: none !important;
 }
 
 #panel.tahoe-panel .tahoe-cc-panel-icon,
-#panel.tahoe-panel .tahoe-cc-battery-label {
+#panel.tahoe-panel .tahoe-cc-battery-label,
+#panel.tahoe-panel .tahoe-cc-battery-icon,
+#panel.tahoe-panel .tahoe-cc-glyph {
     color: inherit;
 }
 
 #panel.tahoe-panel .tahoe-cc-battery-box {
-    spacing: 4px;
+    spacing: 5px;
 }
 
 #panel.tahoe-panel .tahoe-cc-battery-label {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
+}
+
+#panel.tahoe-panel .tahoe-cc-battery-icon {
+    width: 22px;
+    height: 12px;
 }
 
 #panel.tahoe-panel .tahoe-cc-glyph {
@@ -48,14 +60,6 @@
     background-color: rgba(20, 20, 22, 0.94);
 }
 
-#panel.tahoe-panel.tahoe-text-light .tahoe-cc-glyph-pill {
-    background-color: rgba(255, 255, 255, 0.92);
-}
-
-#panel.tahoe-panel.tahoe-text-light .tahoe-cc-glyph-knob {
-    background-color: rgba(20, 20, 22, 0.94);
-}
-
 #panel.tahoe-panel.tahoe-text-dark .tahoe-cc-glyph-pill {
     background-color: rgba(0, 0, 0, 0.82);
 }
@@ -65,7 +69,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   Contenedor de los menús (Liquid Glass)
+   Menú: totalmente transparente; los módulos flotan directamente
    -------------------------------------------------------------------------- */
 
 .tahoe-cc-menu {
@@ -73,424 +77,426 @@
     -arrow-rise: 6px;
     -arrow-border-width: 0;
     -arrow-border-radius: 0;
-    -boxpointer-gap: 6px;
+    -arrow-background-color: transparent;
+    -arrow-box-shadow: none;
+    -boxpointer-gap: 8px;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    box-shadow: none !important;
     font-family: SF Pro Text, Inter, Cantarell, sans-serif;
 }
 
-/* El tema (MacTahoe) añade margen y un gap distinto a los menús de panel. */
 .popup-menu.panel-menu.tahoe-cc-menu {
-    -boxpointer-gap: 6px;
-    margin-bottom: 0;
-}
-
-.tahoe-cc-menu .popup-menu-content {
-    background-color: rgba(30, 30, 32, 0.55);
-    background-image: none;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 26px;
-    box-shadow: 0 14px 44px 0 rgba(0, 0, 0, 0.48);
-    padding: 12px;
+    -boxpointer-gap: 8px;
     margin: 0;
-    width: 314px;
+}
+
+.tahoe-cc-menu .popup-menu-content,
+.tahoe-cc-menu .popup-menu-content:ltr,
+.tahoe-cc-menu .popup-menu-content:rtl {
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    border-width: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
     color: #ffffff;
-    font-family: SF Pro Text, Inter, Cantarell, sans-serif;
 }
 
-.tahoe-cc-popover .popup-menu-content {
-    width: 262px;
-    border-radius: 22px;
-    padding: 12px;
+.tahoe-cc-menu StLabel {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
-.tahoe-cc-menu .tahoe-cc-root {
-    spacing: 10px;
-    width: 314px;
+.tahoe-cc-menu.tahoe-cc-light StLabel {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.40);
 }
 
-.tahoe-cc-menu .tahoe-cc-popover-inner {
-    spacing: 8px;
-    width: 238px;
+.tahoe-cc-main-menu .tahoe-cc-root {
+    width: 284px;
+    spacing: 12px;
 }
 
-/* Tema claro */
-.tahoe-cc-menu.tahoe-cc-light .popup-menu-content {
-    background-color: rgba(246, 246, 246, 0.70);
-    border-color: rgba(0, 0, 0, 0.10);
-    box-shadow: 0 14px 44px 0 rgba(0, 0, 0, 0.22);
-    color: #1d1d1f;
+.tahoe-cc-popover .tahoe-cc-popover-inner {
+    width: auto;
+}
+
+.tahoe-cc-grid {
+    width: 284px;
+    spacing: 12px;
 }
 
 /* --------------------------------------------------------------------------
-   Tarjetas
+   Material Liquid Glass
    -------------------------------------------------------------------------- */
 
-.tahoe-cc-menu .tahoe-cc-card {
-    background-color: rgba(255, 255, 255, 0.10);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
-    padding: 12px;
-    spacing: 6px;
+.tahoe-cc-glass {
+    background-color: rgba(255, 255, 255, 0.16);
+    background-image: none;
+    background-gradient-direction: vertical;
+    background-gradient-start: rgba(255, 255, 255, 0.26);
+    background-gradient-end: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    box-shadow: 0 3px 9px rgba(0, 0, 0, 0.12);
     color: #ffffff;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-card {
-    background-color: rgba(255, 255, 255, 0.60);
-    border-color: rgba(0, 0, 0, 0.06);
-    color: #1d1d1f;
-}
-
-.tahoe-cc-menu .tahoe-cc-grid {
-    spacing: 10px;
-}
-
-.tahoe-cc-menu .tahoe-cc-right-column {
-    spacing: 10px;
-}
-
-.tahoe-cc-menu .tahoe-cc-connectivity {
-    spacing: 8px;
-}
-
-.tahoe-cc-menu .tahoe-cc-focus-card {
-    spacing: 0;
-    padding: 10px;
-}
-
-.tahoe-cc-menu .tahoe-cc-focus-card .tahoe-cc-row {
-    spacing: 7px;
-}
-
-.tahoe-cc-menu .tahoe-cc-focus-card .tahoe-cc-title {
-    font-size: 12px;
-}
-
-.tahoe-cc-menu .tahoe-cc-tiles {
-    spacing: 10px;
-}
-
-.tahoe-cc-menu .tahoe-cc-tile {
-    spacing: 6px;
-    padding: 8px;
-    y-align: center;
-}
-
-.tahoe-cc-menu .tahoe-cc-slider-card {
-    spacing: 6px;
-}
-
-.tahoe-cc-menu .tahoe-cc-actions {
-    spacing: 4px;
-    padding: 12px 8px;
+.tahoe-cc-light .tahoe-cc-glass {
+    background-color: rgba(255, 255, 255, 0.24);
+    background-gradient-start: rgba(255, 255, 255, 0.34);
+    background-gradient-end: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.46);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
 }
 
 /* --------------------------------------------------------------------------
    Tipografía
    -------------------------------------------------------------------------- */
 
-.tahoe-cc-menu .tahoe-cc-title {
+.tahoe-cc-title {
     font-size: 13px;
     font-weight: 600;
     color: #ffffff;
 }
 
-.tahoe-cc-menu .tahoe-cc-card-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #ffffff;
-}
-
-.tahoe-cc-menu .tahoe-cc-subtitle {
+.tahoe-cc-subtitle {
     font-size: 11px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.60);
+    color: rgba(255, 255, 255, 0.75);
 }
 
-.tahoe-cc-menu .tahoe-cc-section-label {
-    font-size: 11px;
+.tahoe-cc-card-title {
+    font-size: 13px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.52);
-    margin: 2px 2px 0 2px;
+    color: #ffffff;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-title,
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-card-title {
-    color: #1d1d1f;
+.tahoe-cc-sheet-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-subtitle {
-    color: rgba(29, 29, 31, 0.55);
+.tahoe-cc-popover-subtitle {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.62);
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-section-label {
-    color: rgba(29, 29, 31, 0.48);
+.tahoe-cc-section-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.tahoe-cc-section-chevron {
+    color: rgba(255, 255, 255, 0.85);
 }
 
 /* --------------------------------------------------------------------------
-   Filas de módulos
+   Píldoras
    -------------------------------------------------------------------------- */
 
-.tahoe-cc-menu .tahoe-cc-row {
-    spacing: 9px;
+.tahoe-cc-pill {
+    width: 114px;
+    height: 48px;
+    border-radius: 999px;
+    padding: 6px 10px;
+    spacing: 8px;
 }
 
-.tahoe-cc-menu .tahoe-cc-row-text {
+.tahoe-cc-pill-text {
     background-color: transparent;
     background-image: none;
     border: none;
     box-shadow: none;
     padding: 0;
     margin: 0;
-    spacing: 0;
     color: inherit;
 }
 
-.tahoe-cc-menu .tahoe-cc-row-text:hover {
+.tahoe-cc-pill-text:hover {
     background-color: transparent;
 }
 
-.tahoe-cc-menu .tahoe-cc-row-labels {
+.tahoe-cc-pill-labels {
     spacing: 0;
+}
+
+.tahoe-cc-pill-focus {
+    width: 120px;
+    padding-left: 7px;
+    padding-right: 7px;
+    spacing: 6px;
+}
+
+.tahoe-cc-pill-focus .tahoe-cc-title {
+    font-size: 11.5px;
+}
+
+.tahoe-cc-pill-focus .tahoe-cc-icon-circle {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: 17px;
 }
 
 /* --------------------------------------------------------------------------
    Botones circulares
    -------------------------------------------------------------------------- */
 
-.tahoe-cc-menu .tahoe-cc-circle {
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-    min-height: 34px;
-    border-radius: 17px;
+.tahoe-cc-circle {
+    border-radius: 999px;
+    padding: 0;
+    margin: 0;
+    border-width: 1px;
+    color: #ffffff;
+}
+
+.tahoe-cc-circle-62 {
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
+    min-height: 60px;
+    border-radius: 31px;
+}
+
+.tahoe-cc-circle-38 {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 19px;
+}
+
+.tahoe-cc-circle-26 {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    border-radius: 13px;
+}
+
+.tahoe-cc-circle:hover {
+    background-color: rgba(255, 255, 255, 0.24);
+}
+
+.tahoe-cc-icon-circle {
+    background-color: rgba(255, 255, 255, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.30);
+    color: #ffffff;
+    padding: 0;
+    margin: 0;
+}
+
+.tahoe-cc-icon-circle:hover {
+    background-color: rgba(255, 255, 255, 0.30);
+}
+
+.tahoe-cc-icon-circle.tahoe-cc-on {
+    background-color: #0a84ff;
+    border-color: #0a84ff;
+    color: #ffffff;
+}
+
+/* Toggle activo: círculo blanco opaco con icono azul. */
+.tahoe-cc-glass.tahoe-cc-on {
+    background-color: rgba(255, 255, 255, 0.95);
+    background-gradient-start: rgba(255, 255, 255, 0.95);
+    background-gradient-end: rgba(255, 255, 255, 0.95);
+    border-color: rgba(255, 255, 255, 0.95);
+    color: #0a84ff;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
+}
+
+.tahoe-cc-icon {
+    color: inherit;
+}
+
+.tahoe-cc-output-button {
+    margin-left: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Tarjeta de reproducción
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-media {
+    width: 114px;
+    height: 114px;
+    border-radius: 26px;
+    padding: 10px;
+}
+
+.tahoe-cc-media-content {
+    spacing: 4px;
+}
+
+.tahoe-cc-media-top {
+    spacing: 8px;
+}
+
+.tahoe-cc-media-labels {
+    spacing: 0;
+}
+
+.tahoe-cc-media-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.tahoe-cc-media-artist {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.tahoe-cc-media-art {
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.20);
+    background-size: cover;
+}
+
+.tahoe-cc-media-art-icon {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.tahoe-cc-media-controls {
+    spacing: 4px;
+    margin-top: 2px;
+}
+
+.tahoe-cc-media-button {
+    width: 32px;
+    height: 26px;
+    min-width: 32px;
+    min-height: 26px;
+    border-radius: 8px;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.tahoe-cc-media-button:hover {
     background-color: rgba(255, 255, 255, 0.16);
+}
+
+.tahoe-cc-media-empty {
+    spacing: 6px;
+}
+
+.tahoe-cc-media-empty-icon {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.tahoe-cc-media-empty-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.60);
+}
+
+/* --------------------------------------------------------------------------
+   Tarjetas anchas (Pantalla / Sonido)
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-wide {
+    width: 258px;
+    height: 44px;
+    border-radius: 24px;
+    padding: 8px 12px;
+    spacing: 3px;
+}
+
+.tahoe-cc-wide-row {
+    spacing: 7px;
+}
+
+.tahoe-cc-slider-end {
+    background-color: transparent;
     border: none;
     box-shadow: none;
     padding: 0;
     margin: 0;
-    color: #ffffff;
-    transition-duration: 120ms;
+    color: rgba(255, 255, 255, 0.92);
 }
 
-.tahoe-cc-menu .tahoe-cc-circle:hover {
-    background-color: rgba(255, 255, 255, 0.24);
+.tahoe-cc-slider-end-icon {
+    color: rgba(255, 255, 255, 0.92);
 }
 
-.tahoe-cc-menu .tahoe-cc-circle:active {
-    background-color: rgba(255, 255, 255, 0.30);
-}
-
-.tahoe-cc-menu .tahoe-cc-circle-on,
-.tahoe-cc-menu .tahoe-cc-circle-on:hover {
-    background-color: #0a84ff;
-    color: #ffffff;
-}
-
-.tahoe-cc-menu .tahoe-cc-circle-icon {
-    color: inherit;
-}
-
-.tahoe-cc-menu .tahoe-cc-small-circle {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    min-height: 28px;
-    border-radius: 14px;
-    background-color: rgba(255, 255, 255, 0.12);
-}
-
-.tahoe-cc-menu .tahoe-cc-small-circle:hover {
-    background-color: rgba(255, 255, 255, 0.20);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-circle {
-    background-color: rgba(0, 0, 0, 0.08);
-    color: rgba(0, 0, 0, 0.74);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-circle:hover {
-    background-color: rgba(0, 0, 0, 0.14);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-circle-on,
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-circle-on:hover {
-    background-color: #0a84ff;
-    color: #ffffff;
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-small-circle {
-    background-color: rgba(0, 0, 0, 0.07);
-    color: rgba(0, 0, 0, 0.70);
-}
-
-/* --------------------------------------------------------------------------
-   Tarjetas pequeñas (Modo oscuro / Luz nocturna)
-   -------------------------------------------------------------------------- */
-
-.tahoe-cc-menu .tahoe-cc-tile-label {
-    font-size: 10px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.86);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-tile-label {
-    color: rgba(29, 29, 31, 0.78);
-}
-
-/* --------------------------------------------------------------------------
-   Acciones inferiores
-   -------------------------------------------------------------------------- */
-
-.tahoe-cc-menu .tahoe-cc-action {
-    spacing: 5px;
-}
-
-.tahoe-cc-menu .tahoe-cc-action-label {
-    font-size: 10px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.68);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-action-label {
-    color: rgba(29, 29, 31, 0.58);
-}
-
-/* --------------------------------------------------------------------------
-   Sliders gruesos estilo Tahoe
-   -------------------------------------------------------------------------- */
-
-.tahoe-cc-menu .tahoe-cc-slider-wrap {
-    height: 28px;
-    x-align: fill;
-}
-
-.tahoe-cc-menu .tahoe-cc-slider {
-    height: 28px;
-    color: transparent;
-    border-radius: 14px;
-    -slider-handle-radius: 0px;
-    -barlevel-height: 28px;
-    -barlevel-border-width: 0px;
-    -barlevel-border-radius: 14px;
-    -barlevel-background-color: rgba(255, 255, 255, 0.18);
-    -barlevel-active-background-color: rgba(255, 255, 255, 0.94);
-    -barlevel-overdrive-color: rgba(255, 255, 255, 0.94);
-    -barlevel-overdrive-separator-width: 0px;
-}
-
-.tahoe-cc-menu .tahoe-cc-slider:hover {
-    -barlevel-active-background-color: rgba(255, 255, 255, 1);
-}
-
-.tahoe-cc-menu .tahoe-cc-slider-icon {
+/* Slider propio: pista de 8px y tirador píldora */
+.tahoe-cc-tahoeslider {
+    height: 22px;
+    min-height: 22px;
     background-color: transparent;
-    background-image: none;
     border: none;
     box-shadow: none;
-    padding: 0;
-    margin-left: 9px;
-    width: 18px;
-    height: 18px;
-    min-width: 18px;
-    min-height: 18px;
-    color: #1d1d1f;
-}
-
-.tahoe-cc-menu .tahoe-cc-slider-icon-image {
-    color: #1d1d1f;
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-slider {
-    -barlevel-background-color: rgba(0, 0, 0, 0.12);
-    -barlevel-active-background-color: rgba(255, 255, 255, 0.98);
-    -barlevel-overdrive-color: rgba(255, 255, 255, 0.98);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-slider-icon,
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-slider-icon-image {
-    color: rgba(29, 29, 31, 0.70);
 }
 
 /* --------------------------------------------------------------------------
-   Reproduciendo
+   Pie
    -------------------------------------------------------------------------- */
 
-.tahoe-cc-menu .tahoe-cc-media-card {
-    spacing: 10px;
-    padding: 12px;
+.tahoe-cc-footer-pill {
+    min-height: 26px;
+    height: 26px;
+    padding: 3px 12px;
+    border-radius: 999px;
 }
 
-.tahoe-cc-menu .tahoe-cc-media-art {
-    border-radius: 10px;
-    background-color: rgba(255, 255, 255, 0.12);
-    background-size: cover;
-}
-
-.tahoe-cc-menu .tahoe-cc-media-art-icon {
-    color: rgba(255, 255, 255, 0.55);
-}
-
-.tahoe-cc-menu .tahoe-cc-media-labels {
-    spacing: 1px;
-}
-
-.tahoe-cc-menu .tahoe-cc-media-title {
+.tahoe-cc-footer-label {
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     color: #ffffff;
 }
 
-.tahoe-cc-menu .tahoe-cc-media-artist {
-    font-size: 11px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.60);
-}
-
-.tahoe-cc-menu .tahoe-cc-media-controls {
-    spacing: 2px;
-}
-
-.tahoe-cc-menu .tahoe-cc-media-button {
-    width: 26px;
-    height: 26px;
-    min-width: 26px;
-    min-height: 26px;
-    border-radius: 13px;
-    background-color: transparent;
-    padding: 0;
-    color: rgba(255, 255, 255, 0.88);
-}
-
-.tahoe-cc-menu .tahoe-cc-media-button:hover {
-    background-color: rgba(255, 255, 255, 0.14);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-media-title {
-    color: #1d1d1f;
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-media-artist {
-    color: rgba(29, 29, 31, 0.55);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-media-button {
-    color: rgba(29, 29, 31, 0.78);
-}
-
 /* --------------------------------------------------------------------------
-   Listas y vistas de detalle
+   Hojas de detalle y popovers
    -------------------------------------------------------------------------- */
 
-.tahoe-cc-menu .tahoe-cc-detail-header {
-    spacing: 6px;
-    min-height: 30px;
+.tahoe-cc-sheet {
+    border-radius: 22px;
+    spacing: 0;
+    padding: 0;
+    /* St pinta sombras grandes como un halo rectangular; las hojas van sin
+       sombra y el contorno brillante ya las separa del fondo. */
+    box-shadow: none;
 }
 
-.tahoe-cc-menu .tahoe-cc-back-button {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    min-height: 28px;
-    border-radius: 14px;
+.tahoe-cc-sheet-wifi,
+.tahoe-cc-sheet-bluetooth,
+.tahoe-cc-sheet-sound {
+    width: 282px;
+}
+
+.tahoe-cc-sheet-sound-popup {
+    width: 298px;
+}
+
+.tahoe-cc-sheet-battery {
+    width: 262px;
+}
+
+.tahoe-cc-detail-header {
+    spacing: 6px;
+    padding: 10px 12px;
+    min-height: 44px;
+}
+
+.tahoe-cc-back-button {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    border-radius: 12px;
     background-color: rgba(255, 255, 255, 0.10);
     border: none;
     box-shadow: none;
@@ -498,210 +504,308 @@
     color: #ffffff;
 }
 
-.tahoe-cc-menu .tahoe-cc-back-button:hover {
-    background-color: rgba(255, 255, 255, 0.18);
+.tahoe-cc-back-button:hover {
+    background-color: rgba(255, 255, 255, 0.20);
 }
 
-.tahoe-cc-menu .tahoe-cc-back-glyph {
-    font-size: 22px;
+.tahoe-cc-back-glyph {
+    font-size: 20px;
     font-weight: 400;
     color: inherit;
     margin-bottom: 2px;
 }
 
-.tahoe-cc-menu .tahoe-cc-detail-title {
-    font-size: 15px;
+.tahoe-cc-detail-title {
+    font-size: 13px;
     font-weight: 700;
     color: #ffffff;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-detail-title {
-    color: #1d1d1f;
+.tahoe-cc-sheet-title-row {
+    padding: 12px 16px 6px 16px;
 }
 
-.tahoe-cc-menu .tahoe-cc-detail-card {
+.tahoe-cc-sheet-padded {
+    padding: 4px 12px;
+}
+
+.tahoe-cc-sheet-sound-popup .tahoe-cc-sheet-padded,
+.tahoe-cc-sheet-sound-popup .tahoe-cc-sound-slider-row,
+.tahoe-cc-sheet-sound-popup .tahoe-cc-sheet-title-row {
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.tahoe-cc-sheet-sound .tahoe-cc-sheet-padded {
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.tahoe-cc-section-header {
+    padding: 4px 12px;
     spacing: 6px;
 }
 
-.tahoe-cc-menu .tahoe-cc-list {
-    spacing: 1px;
+.tahoe-cc-sheet-sound-popup .tahoe-cc-section-header {
+    padding-left: 16px;
+    padding-right: 16px;
 }
 
-.tahoe-cc-menu .tahoe-cc-list-row {
+.tahoe-cc-sheet-sound .tahoe-cc-section-header {
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.tahoe-cc-separator {
+    height: 1px;
+    min-height: 1px;
+    background-color: rgba(255, 255, 255, 0.18);
+    border: none;
+    margin: 3px 0;
+}
+
+.tahoe-cc-sheet-link {
     background-color: transparent;
-    background-image: none;
     border: none;
     box-shadow: none;
-    padding: 6px 8px;
+    padding: 9px 12px;
     margin: 0;
-    border-radius: 11px;
     color: #ffffff;
+    border-radius: 8px;
 }
 
-.tahoe-cc-menu .tahoe-cc-list-row:hover {
-    background-color: rgba(255, 255, 255, 0.10);
+.tahoe-cc-sheet-link:hover {
+    background-color: rgba(255, 255, 255, 0.14);
 }
 
-.tahoe-cc-menu .tahoe-cc-list-row-box {
-    spacing: 9px;
-}
-
-.tahoe-cc-menu .tahoe-cc-list-labels {
-    spacing: 0;
-}
-
-.tahoe-cc-menu .tahoe-cc-list-icon {
-    color: rgba(255, 255, 255, 0.86);
-}
-
-.tahoe-cc-menu .tahoe-cc-list-title {
-    font-size: 12px;
+.tahoe-cc-sheet-link-label {
+    font-size: 13px;
     font-weight: 500;
     color: #ffffff;
 }
 
-.tahoe-cc-menu .tahoe-cc-list-suffix {
-    color: rgba(255, 255, 255, 0.45);
+.tahoe-cc-sheet-sound-popup .tahoe-cc-sheet-link {
+    padding-left: 16px;
+    padding-right: 16px;
 }
 
-.tahoe-cc-menu .tahoe-cc-list-check {
+.tahoe-cc-empty-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.72);
+    padding: 10px 12px;
+}
+
+.tahoe-cc-sheet-sound-popup .tahoe-cc-empty-label {
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.tahoe-cc-sound-slider-row {
+    spacing: 8px;
+    padding: 0 12px 6px 12px;
+}
+
+/* Filas de lista */
+.tahoe-cc-list {
+    spacing: 0;
+}
+
+.tahoe-cc-list-row {
+    min-height: 24px;
+    padding: 2px 8px;
+    margin: 0;
+    border-radius: 8px;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    color: #ffffff;
+}
+
+.tahoe-cc-list-row-large {
+    min-height: 30px;
+    padding: 5px 16px;
+}
+
+.tahoe-cc-list-row:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.tahoe-cc-list-row-box {
+    spacing: 8px;
+}
+
+.tahoe-cc-list-labels {
+    spacing: 0;
+}
+
+.tahoe-cc-list-circle {
+    border-radius: 999px;
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.tahoe-cc-list-icon {
+    color: #ffffff;
+}
+
+.tahoe-cc-list-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #ffffff;
+}
+
+.tahoe-cc-list-subtitle {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.tahoe-cc-list-suffix {
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.tahoe-cc-list-check {
+    color: #ffffff;
+}
+
+.tahoe-cc-list-row-active .tahoe-cc-list-circle {
+    background-color: #0a84ff;
+}
+
+.tahoe-cc-list-row-active .tahoe-cc-list-title {
+    font-weight: 700;
+}
+
+.tahoe-cc-list-row-active-white .tahoe-cc-list-circle {
+    background-color: rgba(255, 255, 255, 0.95);
+}
+
+.tahoe-cc-list-row-active-white .tahoe-cc-list-icon {
     color: #0a84ff;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-row {
-    color: #1d1d1f;
+.tahoe-cc-list-row-active-white .tahoe-cc-list-check {
+    color: #ffffff;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-row:hover {
-    background-color: rgba(0, 0, 0, 0.06);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-title {
-    color: #1d1d1f;
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-icon {
-    color: rgba(29, 29, 31, 0.72);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-suffix {
-    color: rgba(29, 29, 31, 0.42);
-}
-
-.tahoe-cc-menu .tahoe-cc-scroll {
+.tahoe-cc-scroll {
     background-color: transparent;
     border: none;
     box-shadow: none;
     padding: 0;
 }
 
-.tahoe-cc-menu .tahoe-cc-scroll StScrollBar {
+.tahoe-cc-scroll StScrollBar {
     padding: 0;
 }
 
 /* --------------------------------------------------------------------------
-   Separadores y enlaces de pie
+   Switch iOS/macOS
    -------------------------------------------------------------------------- */
 
-.tahoe-cc-menu .tahoe-cc-separator {
-    height: 1px;
-    min-height: 1px;
-    margin: 2px 2px;
-    background-color: rgba(255, 255, 255, 0.10);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-separator {
-    background-color: rgba(0, 0, 0, 0.08);
-}
-
-.tahoe-cc-menu .tahoe-cc-footer-link {
-    background-color: transparent;
-    background-image: none;
+.tahoe-cc-switch {
+    width: 38px;
+    height: 22px;
+    min-width: 38px;
+    min-height: 22px;
+    border-radius: 11px;
     border: none;
     box-shadow: none;
-    padding: 3px 6px;
+    padding: 0;
     margin: 0;
-    color: rgba(255, 255, 255, 0.45);
 }
 
-.tahoe-cc-menu .tahoe-cc-footer-link:hover {
-    background-color: transparent;
-    color: rgba(255, 255, 255, 0.72);
+.tahoe-cc-switch-off {
+    background-color: rgba(255, 255, 255, 0.30);
 }
 
-.tahoe-cc-menu .tahoe-cc-footer-label {
-    font-size: 11px;
-    font-weight: 500;
-    color: inherit;
+.tahoe-cc-switch-on {
+    background-color: #0a84ff;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-footer-link {
-    color: rgba(29, 29, 31, 0.42);
-}
-
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-footer-link:hover {
-    color: rgba(29, 29, 31, 0.68);
+.tahoe-cc-switch-knob {
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background-color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
 }
 
 /* --------------------------------------------------------------------------
    Menú de batería
    -------------------------------------------------------------------------- */
 
-.tahoe-cc-menu .tahoe-cc-popover-header {
-    spacing: 10px;
-    padding: 2px 2px 4px 2px;
+.tahoe-cc-battery-popover-header {
+    padding: 12px 14px 2px 14px;
+    spacing: 8px;
 }
 
-.tahoe-cc-menu .tahoe-cc-popover-header-labels {
-    spacing: 1px;
-}
-
-.tahoe-cc-menu .tahoe-cc-popover-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #ffffff;
-}
-
-.tahoe-cc-menu .tahoe-cc-popover-header-icon {
-    color: rgba(255, 255, 255, 0.88);
-}
-
-.tahoe-cc-menu .tahoe-cc-battery-percentage {
-    font-size: 20px;
+.tahoe-cc-battery-percentage {
+    font-size: 15px;
     font-weight: 600;
     color: #ffffff;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-popover-title,
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-battery-percentage {
-    color: #1d1d1f;
+.tahoe-cc-sheet-battery > .tahoe-cc-popover-subtitle {
+    padding: 0 14px 4px 14px;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-popover-header-icon {
-    color: rgba(29, 29, 31, 0.78);
-}
-
-.tahoe-cc-menu .tahoe-cc-info-row {
-    spacing: 10px;
-    padding: 3px 2px;
-}
-
-.tahoe-cc-menu .tahoe-cc-info-key {
+.tahoe-cc-info-line {
     font-size: 11px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.58);
+    color: rgba(255, 255, 255, 0.62);
+    padding: 2px 14px 2px 14px;
 }
 
-.tahoe-cc-menu .tahoe-cc-info-value {
+.tahoe-cc-info-row {
+    spacing: 10px;
+    padding: 4px 14px;
+}
+
+.tahoe-cc-info-key {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.tahoe-cc-info-value {
     font-size: 11px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.88);
+    color: rgba(255, 255, 255, 0.92);
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-info-key {
-    color: rgba(29, 29, 31, 0.52);
+.tahoe-cc-sheet-battery .tahoe-cc-sheet-link {
+    padding-left: 14px;
+    padding-right: 14px;
 }
 
-.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-info-value {
-    color: rgba(29, 29, 31, 0.85);
+.tahoe-cc-sheet-battery .tahoe-cc-section-header {
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+.tahoe-cc-sheet-battery .tahoe-cc-list-row-large {
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   Popover de sonido
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-sheet-sound-popup .tahoe-cc-list-row-large {
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.tahoe-cc-sheet-wifi .tahoe-cc-list-row,
+.tahoe-cc-sheet-bluetooth .tahoe-cc-list-row {
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.tahoe-cc-sheet-wifi .tahoe-cc-scroll-holder,
+.tahoe-cc-sheet-bluetooth .tahoe-cc-scroll-holder,
+.tahoe-cc-sheet-sound .tahoe-cc-scroll-holder {
+    margin: 2px 0;
 }

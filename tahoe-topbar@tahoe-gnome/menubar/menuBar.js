@@ -155,6 +155,10 @@ export class TahoeMenuBar {
         this._keySender = new KeySender();
         this._menuModels = new Map();
 
+        this._interfaceSettings = null;
+        this._interfaceChangedId = 0;
+        this._menuDarkApplied = false;
+
         this._theme = null;
         this._cssFile = null;
 
@@ -176,10 +180,59 @@ export class TahoeMenuBar {
 
         this._loadStylesheet();
         this._bindSettings();
+        this._setupMenuMaterial();
         this._connectSignals();
 
         this._applyVisibility();
         this._scheduleRebuild();
+    }
+
+    /* -------------------------------------------------------------- */
+    /* Material claro/oscuro de los menús                              */
+    /* -------------------------------------------------------------- */
+
+    _setupMenuMaterial() {
+        try {
+            this._interfaceSettings = new Gio.Settings({
+                schema_id: 'org.gnome.desktop.interface',
+            });
+        } catch (error) {
+            logError('No se pudo leer el esquema de interfaz', error);
+            this._interfaceSettings = null;
+        }
+
+        if (this._interfaceSettings) {
+            this._interfaceChangedId = this._interfaceSettings.connect(
+                'changed::color-scheme', () => this._applyMenuMaterial());
+        }
+
+        this._applyMenuMaterial();
+    }
+
+    _applyMenuMaterial() {
+        if (this._destroyed)
+            return;
+
+        let dark = false;
+        try {
+            dark = this._interfaceSettings?.get_string('color-scheme') ===
+                'prefer-dark';
+        } catch {
+            dark = false;
+        }
+
+        try {
+            // La clase vive en uiGroup para cubrir tanto los menús de esta
+            // barra como el menú de la manzana (también hijo de uiGroup).
+            if (dark)
+                Main.uiGroup.add_style_class_name('tahoe-menu-dark');
+            else
+                Main.uiGroup.remove_style_class_name('tahoe-menu-dark');
+
+            this._menuDarkApplied = dark;
+        } catch (error) {
+            logError('No se pudo aplicar el material del menú', error);
+        }
     }
 
     /* -------------------------------------------------------------- */
@@ -1519,6 +1572,25 @@ export class TahoeMenuBar {
         }
         this._settingsId = 0;
         this._settings = null;
+
+        if (this._interfaceSettings && this._interfaceChangedId) {
+            try {
+                this._interfaceSettings.disconnect(this._interfaceChangedId);
+            } catch {
+                // Ajustes ya destruidos.
+            }
+        }
+        this._interfaceChangedId = 0;
+        this._interfaceSettings = null;
+
+        if (this._menuDarkApplied) {
+            try {
+                Main.uiGroup.remove_style_class_name('tahoe-menu-dark');
+            } catch {
+                // uiGroup ya no existe.
+            }
+            this._menuDarkApplied = false;
+        }
 
         this._disconnectSignals();
         this._clearTitles();
