@@ -159,5 +159,145 @@
       <default>''</default>
       <summary>Nombre del sistema (vacío = /etc/os-release, p.ej. Fedora Linux 44)</summary>
     </key>
+
+    <!-- ===== Liquid Glass engine (vendor/liquid-glass) ===== -->
+    <!-- Claves con los nombres y valores por defecto del esquema original de
+         Liquid Glass (MIT, ryohsuke1231). El motor las lee sin renombrar. -->
+    <key name="glass-blur-downscale" type="i">
+      <default>2</default>
+      <summary>Resolución del desenfoque</summary>
+      <description>Divisor de la resolución a la que se calcula el desenfoque del fondo. 2 = media resolución (por defecto). 4 = cuarta parte: cada pasada toca una cuarta parte de los píxeles y usa una cuarta parte de la memoria, pero el desenfoque se ve más grueso. Cualquier otro valor se trata como 2.</description>
+    </key>
+    <key name="blur-method" type="i">
+      <default>0</default>
+      <summary>Método de desenfoque</summary>
+      <description>0 = Gaussiano (recomendado), 1 = Dual Kawase (rendimiento).</description>
+    </key>
+    <key name="glass-max-z" type="d">
+      <default>88.0</default>
+      <summary>Profundidad máxima (grosor)</summary>
+      <description>Controla el grosor o profundidad física del cristal.</description>
+    </key>
+    <key name="glass-displacement-scale" type="d">
+      <default>10.5</default>
+      <summary>Escala de desplazamiento</summary>
+      <description>Controla la fuerza de la refracción.</description>
+    </key>
+    <key name="glass-edge-smoothing" type="d">
+      <default>0.5</default>
+      <summary>Suavizado de bordes</summary>
+      <description>Anchura del difuminado antialias de la geometría del cristal.</description>
+    </key>
+    <key name="glass-profile-shape-n" type="d">
+      <default>3.6</default>
+      <summary>Forma del perfil N</summary>
+      <description>Controla la forma de superelipse de la curvatura de la superficie.</description>
+    </key>
+    <key name="glass-ior" type="d">
+      <default>2.40</default>
+      <summary>Índice de refracción (IOR)</summary>
+      <description>Simula la densidad óptica del material (el vidrio suele estar entre 1.5 y 2.4).</description>
+    </key>
+    <key name="glass-chroma-strength" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.0</default>
+      <summary>Aberración cromática</summary>
+      <description>Separación RGB causada por la refracción, como fracción del desplazamiento.</description>
+    </key>
+    <key name="glass-corner-smoothing" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.6</default>
+      <summary>Suavizado de esquinas</summary>
+      <description>0 da esquinas circulares. Valores mayores dan esquinas continuas.</description>
+    </key>
+    <key name="glass-backdrop-highlights" type="b">
+      <default>true</default>
+      <summary>Brillos del color del fondo</summary>
+      <description>Tiñe la luz del borde, los brillos y el sheen con el color que hay detrás del cristal en vez de blanco.</description>
+    </key>
+    <key name="glass-specular-intensity" type="d">
+      <default>0.0</default>
+      <summary>Intensidad especular</summary>
+      <description>Brillo de los reflejos especulares en la superficie del cristal.</description>
+    </key>
+    <key name="glass-shininess" type="d">
+      <default>42.0</default>
+      <summary>Brillo especular</summary>
+      <description>Controla la nitidez de los reflejos especulares.</description>
+    </key>
+    <key name="glass-rim-width" type="d">
+      <default>2.3</default>
+      <summary>Anchura de la luz del borde</summary>
+      <description>Anchura de la banda de luz cerca de los bordes.</description>
+    </key>
+    <key name="glass-rim-intensity" type="d">
+      <default>0.5</default>
+      <summary>Intensidad de la luz del borde</summary>
+      <description>Brillo general de la luz del borde.</description>
+    </key>
+    <key name="glass-rim-directional-power" type="d">
+      <default>1.9</default>
+      <summary>Direccionalidad de la luz del borde</summary>
+      <description>Cómo afecta la dirección de la luz a la máscara del borde.</description>
+    </key>
+    <key name="glass-rim-power" type="d">
+      <default>3.0</default>
+      <summary>Potencia Fresnel del borde</summary>
+      <description>Caída del efecto Fresnel de la luz del borde.</description>
+    </key>
+    <key name="glass-rim-light-color-intensity" type="d">
+      <default>1.0</default>
+      <summary>Intensidad del color de la luz del borde</summary>
+      <description>Multiplicador del brillo del color de la luz del borde.</description>
+    </key>
+    <key name="glass-sheen-intensity" type="d">
+      <default>0.0</default>
+      <summary>Intensidad del sheen</summary>
+      <description>Intensidad del brillo del fondo a través de la superficie del cristal.</description>
+    </key>
+    <key name="glass-light-angle-deg" type="d">
+      <default>230.0</default>
+      <summary>Ángulo de la luz (grados)</summary>
+      <description>Dirección de la fuente de luz virtual que ilumina el cristal.</description>
+    </key>
+    <key name="shadow-radius" type="d">
+      <default>50.0</default>
+      <summary>Radio de la sombra (px)</summary>
+      <description>Cuánto se extiende la sombra más allá del borde del cristal. 0 la desactiva.</description>
+    </key>
+    <key name="shadow-intensity" type="d">
+      <default>0.07</default>
+      <summary>Intensidad de la sombra</summary>
+      <description>Oscuridad de la sombra. 0.0 = invisible, 1.0 = máxima.</description>
+    </key>
+    <key name="glass-ao-intensity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.65</default>
+      <summary>Oscurecimiento AO del borde interior</summary>
+    </key>
+    <key name="glass-ao-radius" type="d">
+      <range min="0.0" max="50.0"/>
+      <default>1.0</default>
+      <summary>Radio AO del borde interior (px)</summary>
+    </key>
+    <key name="output-logs" type="b">
+      <default>false</default>
+      <summary>Escribir registros</summary>
+      <description>Escribe los registros del motor en la terminal.</description>
+    </key>
+    <key name="glass-debug-diagnostics" type="b">
+      <default>false</default>
+      <summary>Diagnóstico por pintado</summary>
+      <description>Recoge el estado de cada pintado para global._lgGlass.dump(). Cuesta rendimiento; dejar apagado salvo para depurar.</description>
+    </key>
+    <key name="enable-dump-shortcut" type="b">
+      <default>false</default>
+      <summary>Atajo para volcar diagnósticos</summary>
+      <description>Registra dump-loop-keybinding (Ctrl+Alt+L por defecto). Apagado para no chocar con atajos del usuario.</description>
+    </key>
+    <key name="dump-loop-keybinding" type="as">
+      <default><![CDATA[['<Control><Alt>l']]]></default>
+      <summary>Atajo del volcado periódico de diagnósticos</summary>
+    </key>
   </schema>
 </schemalist>

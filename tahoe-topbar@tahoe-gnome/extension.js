@@ -15,6 +15,7 @@ import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 import {TahoeMenuBar} from './menubar/menuBar.js';
 import {attachUpdatesBadge} from './menubar/updates.js';
 import {TahoeControlCenter} from './controlCenter/controlCenter.js';
+import {LiquidGlassEngine} from './liquidGlass.js';
 import {TahoeTheme} from './theme.js';
 
 const APPLE_ROLE = 'tahoeAppleMenu';
@@ -96,6 +97,7 @@ export default class TahoeTopBarExtension extends Extension {
         this._backgroundSettings = null;
         this._menuBar = null;
         this._controlCenter = null;
+        this._liquidGlass = null;
 
         this._wallpaperCache = new Map();
         this._wallpaperKey = '';
@@ -132,10 +134,17 @@ export default class TahoeTopBarExtension extends Extension {
         this._updateLogo();
         this._updateSolidState();
 
+        this._liquidGlass = new LiquidGlassEngine(this);
+
         this._connect(this._settings, 'changed', (_settings, key) => this._onSettingsChanged(key));
     }
 
     disable() {
+        if (this._liquidGlass) {
+            this._liquidGlass.destroy();
+            this._liquidGlass = null;
+        }
+
         if (this._solidIdleId) {
             GLib.source_remove(this._solidIdleId);
             this._solidIdleId = 0;
