@@ -1,0 +1,201 @@
+/*
+ * Dock flotante estilo macOS Tahoe.
+ *
+ * Este archivo se carga desde dock.js con St.ThemeContext.load_stylesheet()
+ * y se descarga en destroy(). Las variantes claro/oscuro se seleccionan por
+ * las clases .tahoe-theme-light / .tahoe-theme-dark que TahoeTheme pone en
+ * Main.uiGroup, y el acento por .tahoe-accent-*.
+ *
+ * Con Liquid Glass activo, .tahoe-dock-glass deja el fondo casi transparente:
+ * el cristal real vive detrás del actor del dock (liquidGlass.js).
+ */
+
+.tahoe-dock {
+    padding: 8px;
+    spacing: 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.62);
+    background-color: rgba(248, 248, 250, 0.60);
+    color: #1d1d1f;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.26),
+                inset 0 1px 0 rgba(255, 255, 255, 0.70);
+    transition-duration: 120ms;
+}
+
+.tahoe-theme-dark .tahoe-dock {
+    border-color: rgba(255, 255, 255, 0.18);
+    background-color: rgba(28, 28, 30, 0.62);
+    color: #f5f5f7;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.52),
+                inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/* Con cristal, el fondo CSS sólo es una red de seguridad para capturas. */
+.tahoe-dock.tahoe-dock-glass {
+    background-color: rgba(255, 255, 255, 0.055);
+    border-color: rgba(255, 255, 255, 0.22);
+    box-shadow: none;
+}
+
+.tahoe-theme-light .tahoe-dock.tahoe-dock-glass {
+    background-color: rgba(255, 255, 255, 0.40);
+    border-color: rgba(255, 255, 255, 0.62);
+}
+
+.tahoe-theme-dark .tahoe-dock.tahoe-dock-glass {
+    background-color: rgba(10, 10, 12, 0.055);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.tahoe-dock-item {
+    padding: 0;
+    margin: 0;
+    border-radius: 14px;
+    background-color: transparent;
+    border: none;
+    color: inherit;
+}
+
+.tahoe-dock-item:hover {
+    background-color: rgba(0, 0, 0, 0.065);
+}
+
+.tahoe-theme-dark .tahoe-dock-item:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.tahoe-dock-item:active,
+.tahoe-dock-item:checked {
+    background-color: rgba(0, 0, 0, 0.12);
+}
+
+.tahoe-theme-dark .tahoe-dock-item:active,
+.tahoe-theme-dark .tahoe-dock-item:checked {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.tahoe-dock-item:focus {
+    background-color: rgba(10, 132, 255, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.80);
+}
+
+.tahoe-dock-item-running {
+    /* El indicador ya comunica el estado; nada de recolorear todo el icono. */
+}
+
+.tahoe-dock-separator {
+    background-color: rgba(0, 0, 0, 0.16);
+    border-radius: 2px;
+}
+
+.tahoe-theme-dark .tahoe-dock-separator {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.tahoe-dock-separator-horizontal {
+    width: 1px;
+}
+
+.tahoe-dock-separator-vertical {
+    height: 1px;
+}
+
+.tahoe-dock-indicator-box {
+    margin-top: 1px;
+    spacing: 2px;
+}
+
+.tahoe-dock-indicator {
+    background-color: rgba(20, 20, 22, 0.78);
+    border-radius: 3px;
+}
+
+.tahoe-theme-dark .tahoe-dock-indicator {
+    background-color: rgba(245, 245, 247, 0.88);
+}
+
+.tahoe-dock-indicator-dot {
+    width: 4px;
+    height: 4px;
+}
+
+.tahoe-dock-indicator-line {
+    height: 3px;
+    min-width: 12px;
+    border-radius: 2px;
+}
+
+.tahoe-dock-indicator.minimized {
+    background-color: transparent;
+    border: 1px solid rgba(20, 20, 22, 0.62);
+}
+
+.tahoe-theme-dark .tahoe-dock-indicator.minimized {
+    background-color: transparent;
+    border-color: rgba(245, 245, 247, 0.62);
+}
+
+.tahoe-dock-indicator.launching {
+    background-color: transparent;
+    border: 1px solid rgba(10, 132, 255, 0.85);
+}
+
+.tahoe-dock-badge {
+    min-width: 14px;
+    height: 14px;
+    padding: 0 4px;
+    border-radius: 7px;
+    background-color: #ff3b30;
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.tahoe-dock-tooltip {
+    background-color: rgba(30, 30, 32, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.34);
+}
+
+.tahoe-dock-menu .popup-menu-content {
+    border-radius: 12px;
+}
+
+.tahoe-dock-menu .tahoe-dock-menu-title {
+    color: rgba(0, 0, 0, 0.56);
+    font-weight: 700;
+}
+
+.tahoe-theme-dark .tahoe-dock-menu .tahoe-dock-menu-title {
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.tahoe-dock-dialog {
+    /* ModalDialog base; el contenido lo estiliza .tahoe-dock-dialog-content. */
+}
+
+.tahoe-dock-dialog-content {
+    spacing: 10px;
+    padding: 4px 2px 8px 2px;
+    min-width: 340px;
+}
+
+.tahoe-dock-dialog-title {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.tahoe-dock-dialog-text {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.66);
+}
+
+.tahoe-theme-dark .tahoe-dock-dialog-text {
+    color: rgba(255, 255, 255, 0.70);
+}

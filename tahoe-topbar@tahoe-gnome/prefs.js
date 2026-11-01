@@ -196,6 +196,7 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         window.set_default_size(680, 760);
 
         window.add(this._buildBarPage(window, settings));
+        window.add(this._buildDockPage(window, settings));
         window.add(this._buildControlCenterPage(window, settings));
         window.add(this._buildGlassPage(window, settings));
         window.add(this._buildAboutMacPage(window, settings));
@@ -432,6 +433,82 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         page.add(this._buildApplicationGroup(settings));
         page.add(this._buildClockGroup(settings));
 
+        return page;
+    }
+
+    _buildDockPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: _('Dock'),
+            icon_name: 'user-desktop-symbolic',
+        });
+        const general = new Adw.PreferencesGroup({
+            title: _('Dock Tahoe'),
+            description: _('Reemplaza el dash de GNOME y desactiva Dash to Dock al encenderlo. No lo reactiva automáticamente.'),
+        });
+        general.add(this._switchRow(settings, 'dock-enabled', _('Activar el dock Tahoe')));
+        general.add(this._stringComboRow(settings, 'dock-position', _('Posición'), [
+            {value: 'bottom', label: 'Abajo'},
+            {value: 'left', label: 'Izquierda'},
+            {value: 'right', label: 'Derecha'},
+        ]));
+        general.add(this._spinRow(settings, 'dock-icon-size', _('Tamaño de los iconos'),
+            _('Píxeles'), 16, 96));
+        const magAdjustment = new Gtk.Adjustment({
+            lower: 1.0, upper: 3.0, step_increment: 0.1,
+            page_increment: 0.2, value: settings.get_double('dock-magnification'),
+        });
+        const magRow = new Adw.SpinRow({
+            title: _('Aumento al pasar el ratón'), adjustment: magAdjustment, digits: 1,
+        });
+        settings.bind('dock-magnification', magRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        general.add(magRow);
+        general.add(this._switchRow(settings, 'dock-autohide', _('Ocultar automáticamente')));
+        general.add(this._spinRow(settings, 'dock-hide-delay', _('Retraso al ocultar'),
+            _('Milisegundos'), 0, 10000));
+        general.add(this._switchRow(settings, 'dock-glass', _('Liquid Glass en el dock')));
+        general.add(this._stringComboRow(settings, 'dock-indicators', _('Indicador de apps abiertas'), [
+            {value: 'dots', label: 'Puntos'}, {value: 'lines', label: 'Líneas'},
+        ]));
+        general.add(this._stringComboRow(settings, 'dock-animation-style',
+            _('Minimizar y restaurar ventanas'), [
+                {value: 'aladdin', label: 'Aladdin (curva)'},
+                {value: 'genie', label: 'Genie (onda)'},
+                {value: 'scale', label: 'Escala de GNOME'},
+                {value: 'none', label: 'Animación nativa'},
+            ]));
+        page.add(general);
+
+        const contents = new Adw.PreferencesGroup({title: _('Contenido')});
+        for (const [key, title] of [
+            ['dock-show-apps', _('Launchpad')],
+            ['dock-show-running', _('Aplicaciones en ejecución')],
+            ['dock-show-downloads', _('Pila de Descargas')],
+            ['dock-show-recent-downloads', _('Archivos recientes en Descargas')],
+            ['dock-show-trash', _('Papelera')],
+            ['dock-show-mounts', _('Volúmenes montados')],
+        ])
+            contents.add(this._switchRow(settings, key, title));
+        page.add(contents);
+
+        const grid = new Adw.PreferencesGroup({title: _('Icono de Launchpad')});
+        const iconRow = new Adw.ActionRow({
+            title: _('Imagen personalizada'),
+            subtitle: settings.get_string('dock-app-grid-icon-path') || _('Usar el icono incluido'),
+        });
+        const choose = new Gtk.Button({label: _('Elegir…'), valign: Gtk.Align.CENTER});
+        choose.connect('clicked', () => this._chooseImage(window, settings,
+            'dock-app-grid-icon-path', _('Elegir icono de Launchpad')));
+        iconRow.add_suffix(choose);
+        const reset = new Gtk.Button({icon_name: 'edit-clear-symbolic', valign: Gtk.Align.CENTER});
+        reset.set_tooltip_text(_('Restablecer icono'));
+        reset.connect('clicked', () => settings.reset('dock-app-grid-icon-path'));
+        iconRow.add_suffix(reset);
+        settings.connect('changed::dock-app-grid-icon-path', () => {
+            iconRow.set_subtitle(settings.get_string('dock-app-grid-icon-path') ||
+                _('Usar el icono incluido'));
+        });
+        grid.add(iconRow);
+        page.add(grid);
         return page;
     }
 

@@ -340,5 +340,32 @@
       <default><![CDATA[['<Control><Alt>l']]]></default>
       <summary>Atajo del volcado periódico de diagnósticos</summary>
     </key>
+    <!-- ===== Dock Tahoe ===== -->
+    <key name="dock-enabled" type="b"><default>true</default><summary>Activar dock Tahoe</summary></key>
+    <key name="dock-icon-size" type="i"><range min="16" max="96"/><default>48</default><summary>Tamaño de iconos del dock</summary></key>
+    <key name="dock-magnification" type="d"><range min="1.0" max="3.0"/><default>1.5</default><summary>Aumento al pasar el ratón</summary></key>
+    <key name="dock-position" type="s">
+      <choices><choice value="bottom"/><choice value="left"/><choice value="right"/></choices>
+      <default>'bottom'</default><summary>Posición del dock</summary>
+    </key>
+    <key name="dock-autohide" type="b"><default>false</default><summary>Ocultar el dock automáticamente</summary></key>
+    <key name="dock-hide-delay" type="i"><range min="0" max="10000"/><default>600</default><summary>Retraso para ocultar el dock, en ms</summary></key>
+    <key name="dock-show-apps" type="b"><default>true</default><summary>Mostrar Launchpad</summary></key>
+    <key name="dock-app-grid-icon-path" type="s"><default>''</default><summary>Ruta del icono personalizado de Launchpad</summary></key>
+    <key name="dock-show-downloads" type="b"><default>true</default><summary>Mostrar la pila de Descargas</summary></key>
+    <key name="dock-show-trash" type="b"><default>true</default><summary>Mostrar la Papelera</summary></key>
+    <key name="dock-show-running" type="b"><default>true</default><summary>Mostrar aplicaciones en ejecución</summary></key>
+    <key name="dock-favorites" type="as"><default>[]</default><summary>Favoritas del dock (vacío: usar favoritas de GNOME)</summary></key>
+    <key name="dock-glass" type="b"><default>true</default><summary>Liquid Glass en el dock</summary></key>
+    <key name="dock-indicators" type="s">
+      <choices><choice value="dots"/><choice value="lines"/></choices>
+      <default>'dots'</default><summary>Indicadores de apps abiertas</summary>
+    </key>
+    <key name="dock-animation-style" type="s">
+      <choices><choice value="aladdin"/><choice value="genie"/><choice value="scale"/><choice value="none"/></choices>
+      <default>'aladdin'</default><summary>Animación de minimizar y restaurar</summary>
+    </key>
+    <key name="dock-show-recent-downloads" type="b"><default>true</default><summary>Archivos recientes en Descargas</summary></key>
+    <key name="dock-show-mounts" type="b"><default>false</default><summary>Mostrar volúmenes montados en el dock</summary></key>
   </schema>
 </schemalist>

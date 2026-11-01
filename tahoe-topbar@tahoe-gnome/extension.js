@@ -15,6 +15,8 @@ import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 import {TahoeMenuBar} from './menubar/menuBar.js';
 import {attachUpdatesBadge} from './menubar/updates.js';
 import {TahoeControlCenter} from './controlCenter/controlCenter.js';
+import {TahoeDock} from './dock/dock.js';
+import {TahoeMinimizeAnimation} from './dock/animation.js';
 import {LiquidGlassEngine, glassLook, stageRect} from './liquidGlass.js';
 import {TahoeTheme} from './theme.js';
 
@@ -109,6 +111,8 @@ export default class TahoeTopBarExtension extends Extension {
         this._backgroundSettings = null;
         this._menuBar = null;
         this._controlCenter = null;
+        this._dock = null;
+        this._minimizeAnimation = null;
         this._glassEngine = null;
         this._glassListeners = new Set();
         this._glassStyle = 'liquid';
@@ -152,6 +156,7 @@ export default class TahoeTopBarExtension extends Extension {
         this._connectGlobalSignals();
         this._applyClockSettings();
         this._applyControlCenter();
+        this._applyDock();
         this._updateLogo();
         this._updateSolidState();
 
@@ -159,6 +164,7 @@ export default class TahoeTopBarExtension extends Extension {
     }
 
     disable() {
+        this._destroyDock();
         this._destroyGlass();
 
         if (this._solidIdleId) {
@@ -328,6 +334,55 @@ export default class TahoeTopBarExtension extends Extension {
             console.error('[tahoe-topbar] Error al destruir el Centro de control:', error);
         }
         this._controlCenter = null;
+    }
+
+    _applyDock() {
+        if (!this._settings?.get_boolean('dock-enabled') ||
+            Main.sessionMode.currentMode !== 'user') {
+            this._destroyDock();
+            return;
+        }
+
+        if (this._dock)
+            return;
+
+        this._disableDashToDock();
+
+        try {
+            this._dock = new TahoeDock(this);
+            this._minimizeAnimation = new TahoeMinimizeAnimation(this, this._dock);
+        } catch (error) {
+            console.error('[tahoe-topbar] No se pudo crear el dock:', error);
+            this._destroyDock();
+        }
+    }
+
+    /*
+     * TahoeDock sustituye a Dash to Dock; ambas no deben convivir. Se desactiva
+     * solo al crear el dock de Tahoe y de forma permanente: al apagar el dock
+     * no se vuelve a activar. disableExtension() mantiene las listas
+     * enabled-extensions/disabled-extensions coherentes (quita el UUID de una
+     * y lo añade a la otra), así que no se escriben ajustes a mano.
+     */
+    _disableDashToDock() {
+        const uuid = 'dash-to-dock@micxgx.gmail.com';
+        try {
+            if (Main.extensionManager.lookup(uuid))
+                Main.extensionManager.disableExtension(uuid);
+        } catch (error) {
+            console.error('[tahoe-topbar] No se pudo desactivar Dash to Dock:', error);
+        }
+    }
+
+    _destroyDock() {
+        if (this._minimizeAnimation) {
+            this._minimizeAnimation.destroy();
+            this._minimizeAnimation = null;
+        }
+        if (this._dock) {
+            this._dock.destroy();
+            this._dock = null;
+        }
     }
 
     _updateLogo() {
@@ -1665,6 +1720,7 @@ export default class TahoeTopBarExtension extends Extension {
             this._menuBar.actor.visible = isUser;
 
         if (!isUser) {
+            this._destroyDock();
             this._destroyControlCenter();
             this._destroyPanelGlass();
             this._destroyAppleGlass();
@@ -1677,6 +1733,7 @@ export default class TahoeTopBarExtension extends Extension {
         this._hideOriginalAppMenu();
         this._applyClockSettings();
         this._applyControlCenter();
+        this._applyDock();
         this._updateSolidState();
     }
 
@@ -1709,6 +1766,9 @@ export default class TahoeTopBarExtension extends Extension {
             break;
         case 'control-center-enabled':
             this._applyControlCenter();
+            break;
+        case 'dock-enabled':
+            this._applyDock();
             break;
         case 'glass-style':
             this._applyGlassStyle();
