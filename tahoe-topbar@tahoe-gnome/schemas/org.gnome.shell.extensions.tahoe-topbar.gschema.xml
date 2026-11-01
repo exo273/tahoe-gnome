@@ -131,6 +131,11 @@
       <default>true</default>
       <summary>Mostrar el módulo Reproduciendo (MPRIS) en el Centro de control</summary>
     </key>
+    <key name="control-center-notifications" type="b">
+      <default>true</default>
+      <summary>Notificaciones estilo Tahoe en el Centro de control</summary>
+      <description>Muestra las notificaciones de GNOME apiladas bajo el Centro de control y adapta el banner del sistema con Liquid Glass. Al desactivarlo, GNOME recupera sus banners y su alineación normales.</description>
+    </key>
     <key name="control-center-show-sound-icon" type="b">
       <default>true</default>
       <summary>Obsoleta: se conserva sólo para migrar a menubar-controls</summary>

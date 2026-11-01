@@ -156,6 +156,7 @@ class GlassHandle {
     _regions = false;
     _getRects = null;
     _destroyId = 0;
+    _glassDestroyId = 0;
     _lastKey = '';
 
     constructor(engine, actor, glass, options, getRects = null) {
@@ -166,6 +167,13 @@ class GlassHandle {
         this._getRects = getRects;
         this._regions = getRects !== null;
         this._destroyId = actor.connect('destroy', () => this.destroy());
+        // Durante el apagado del shell el actor de cristal puede destruirse
+        // antes que el actor que decora; olvidar la referencia evita tocar un
+        // BackdropGlass ya liberado desde el manejador de «destroy».
+        this._glassDestroyId = glass.connect('destroy', () => {
+            this._glassDestroyId = 0;
+            this._glass = null;
+        });
     }
 
     /** Reaplica el look. Los rectángulos se siguen leyendo cada frame. */
@@ -316,6 +324,10 @@ class GlassHandle {
         if (this._destroyId) {
             this._actor.disconnect(this._destroyId);
             this._destroyId = 0;
+        }
+        if (this._glassDestroyId) {
+            glass.disconnect(this._glassDestroyId);
+            this._glassDestroyId = 0;
         }
         this._engine._forget(this);
         glass.cleanup();

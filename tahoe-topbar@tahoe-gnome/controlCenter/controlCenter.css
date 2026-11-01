@@ -1693,3 +1693,402 @@
     border-color: rgba(0, 0, 0, 0.12) !important;
     box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18) !important;
 }
+
+/* ==========================================================================
+   Notificaciones estilo Tahoe
+   La pila vive en .tahoe-cc-column, debajo del CC. Con el CC cerrado se
+   reutiliza el banner de GNOME; .tahoe-notification-banner scoping evita
+   tocar los banners normales cuando el ajuste está desactivado.
+   ========================================================================== */
+
+.tahoe-cc-column {
+    width: 284px;
+    spacing: 12px;
+}
+
+.tahoe-notifications {
+    width: 284px;
+    spacing: 8px;
+    padding: 0;
+}
+
+.tahoe-notifications-header {
+    spacing: 6px;
+    padding: 2px 2px 0;
+}
+
+.tahoe-notifications-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1d1d1f;
+}
+
+.tahoe-notifications-clear {
+    padding: 2px 9px;
+    border-radius: 999px;
+    background-color: rgba(255, 255, 255, 0.38);
+    border: 1px solid rgba(255, 255, 255, 0.62);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
+    color: #0a84ff;
+}
+
+.tahoe-notifications-clear:hover {
+    background-color: rgba(255, 255, 255, 0.56);
+}
+
+.tahoe-notifications-clear.tahoe-notifications-clear-disabled {
+    color: rgba(0, 0, 0, 0.35);
+    background-color: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.30);
+    box-shadow: none;
+}
+
+.tahoe-notifications-clear-label {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.tahoe-notifications-scroll {
+    width: 284px;
+    padding: 0;
+}
+
+.tahoe-notifications-content {
+    width: 284px;
+    spacing: 10px;
+    padding: 1px;
+}
+
+.tahoe-notifications-empty {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.48);
+    padding: 16px 4px;
+}
+
+/* Tarjeta base: material CSS para cuando el motor no está disponible o se
+   supera el límite de superficies. Con motor, la clase -glass la vuelve
+   transparente y el cristal se pinta detrás. */
+.tahoe-notification-card {
+    width: 284px;
+    min-width: 0;
+    max-width: 284px;
+    padding: 10px 12px;
+    spacing: 4px;
+    border-radius: 18px;
+    background-color: rgba(255, 255, 255, 0.54);
+    background-gradient-direction: vertical;
+    background-gradient-start: rgba(255, 255, 255, 0.66);
+    background-gradient-end: rgba(255, 255, 255, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.70);
+    box-shadow: 0 3px 9px rgba(0, 0, 0, 0.12);
+    color: #1d1d1f;
+}
+
+.tahoe-notification-card:hover {
+    background-color: rgba(255, 255, 255, 0.66);
+}
+
+.tahoe-theme-dark .tahoe-notification-card {
+    background-color: rgba(40, 40, 44, 0.52);
+    background-gradient-start: rgba(54, 54, 58, 0.62);
+    background-gradient-end: rgba(32, 32, 36, 0.42);
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.24);
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-notification-card:hover {
+    background-color: rgba(56, 56, 60, 0.58);
+}
+
+.tahoe-theme-dark .tahoe-notifications-title {
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-notifications-clear {
+    background-color: rgba(60, 60, 64, 0.55);
+    border-color: rgba(255, 255, 255, 0.20);
+    color: #64d2ff;
+}
+
+.tahoe-theme-dark .tahoe-notifications-clear.tahoe-notifications-clear-disabled {
+    color: rgba(255, 255, 255, 0.35);
+    background-color: rgba(60, 60, 64, 0.25);
+    border-color: rgba(255, 255, 255, 0.10);
+}
+
+.tahoe-theme-dark .tahoe-notifications-empty {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+/* Sólo las tarjetas que tienen un handle de Liquid Glass quedan
+   transparentes; las demás conservan el material CSS. */
+.tahoe-glass-liquid .tahoe-notification-card.tahoe-notification-card-glass {
+    background-color: transparent !important;
+    background-gradient-start: transparent !important;
+    background-gradient-end: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.tahoe-notification-card-header {
+    spacing: 6px;
+    min-width: 0;
+}
+
+.tahoe-notification-icon {
+    color: #0a84ff;
+}
+
+.tahoe-theme-dark .tahoe-notification-icon {
+    color: #64d2ff;
+}
+
+.tahoe-notification-source {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.58);
+}
+
+.tahoe-theme-dark .tahoe-notification-source {
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.tahoe-notification-time {
+    font-size: 10px;
+    color: rgba(0, 0, 0, 0.42);
+    padding: 0 2px;
+}
+
+.tahoe-theme-dark .tahoe-notification-time {
+    color: rgba(255, 255, 255, 0.50);
+}
+
+.tahoe-notification-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d1d1f;
+    padding-top: 1px;
+}
+
+.tahoe-notification-body {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.66);
+}
+
+.tahoe-theme-dark .tahoe-notification-title {
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-notification-body {
+    color: rgba(255, 255, 255, 0.74);
+}
+
+.tahoe-notification-close {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    padding: 0;
+    margin-left: 2px;
+    border-radius: 999px;
+    background-color: rgba(0, 0, 0, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    color: rgba(0, 0, 0, 0.58);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.tahoe-notification-close:hover {
+    background-color: rgba(0, 0, 0, 0.20);
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .tahoe-notification-close {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.16);
+    color: rgba(255, 255, 255, 0.66);
+}
+
+.tahoe-theme-dark .tahoe-notification-close:hover {
+    background-color: rgba(255, 255, 255, 0.24);
+    color: #ffffff;
+}
+
+.tahoe-notification-badge-button {
+    padding: 0;
+    margin: 0;
+    border-radius: 999px;
+}
+
+.tahoe-notification-badge {
+    min-width: 16px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background-color: #0a84ff;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.tahoe-theme-dark .tahoe-notification-badge {
+    background-color: #64d2ff;
+    color: #1c1c1e;
+}
+
+.tahoe-notification-group {
+    width: 284px;
+    spacing: 8px;
+}
+
+.tahoe-notification-group-header {
+    padding: 3px 4px;
+    border-radius: 8px;
+    background-color: transparent;
+}
+
+.tahoe-notification-group-header:hover {
+    background-color: rgba(255, 255, 255, 0.20);
+}
+
+.tahoe-notification-group-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.68);
+}
+
+.tahoe-theme-dark .tahoe-notification-group-title {
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.tahoe-notification-group-chevron {
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 12px;
+    padding-left: 4px;
+}
+
+.tahoe-theme-dark .tahoe-notification-group-chevron {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.tahoe-notification-actions {
+    spacing: 6px;
+    padding-top: 5px;
+}
+
+.tahoe-notification-action {
+    padding: 3px 8px;
+    border-radius: 9px;
+    background-color: rgba(10, 132, 255, 0.12);
+    border: 1px solid rgba(10, 132, 255, 0.25);
+    color: #0a84ff;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.tahoe-notification-action:hover {
+    background-color: rgba(10, 132, 255, 0.24);
+}
+
+.tahoe-theme-dark .tahoe-notification-action {
+    background-color: rgba(100, 210, 255, 0.14);
+    border-color: rgba(100, 210, 255, 0.28);
+    color: #64d2ff;
+}
+
+/* Tarjetas fantasma de la pila: no llevan shader, sólo material CSS. */
+.tahoe-notification-ghost {
+    width: 284px;
+    border-radius: 18px;
+    background-color: rgba(255, 255, 255, 0.46);
+    border: 1px solid rgba(255, 255, 255, 0.60);
+    box-shadow: 0 3px 9px rgba(0, 0, 0, 0.12);
+}
+
+.tahoe-theme-dark .tahoe-notification-ghost {
+    background-color: rgba(40, 40, 44, 0.48);
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.24);
+}
+
+/* --- Banner de GNOME reutilizado --- */
+
+/* notifications.js aplica el desplazamiento de 8 px al banner y lo restaura
+   al desactivar el ajuste; la clase queda para aislar el estilo. */
+
+.notification-banner.tahoe-notification-banner {
+    width: 380px;
+    padding: 11px 13px;
+    border-radius: 18px;
+    background-color: rgba(255, 255, 255, 0.58);
+    background-gradient-direction: vertical;
+    background-gradient-start: rgba(255, 255, 255, 0.70);
+    background-gradient-end: rgba(255, 255, 255, 0.44);
+    border: 1px solid rgba(255, 255, 255, 0.74);
+    box-shadow: 0 5px 16px rgba(0, 0, 0, 0.16);
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .notification-banner.tahoe-notification-banner {
+    background-color: rgba(38, 38, 42, 0.56);
+    background-gradient-start: rgba(52, 52, 56, 0.66);
+    background-gradient-end: rgba(28, 28, 32, 0.46);
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.30);
+    color: #ffffff;
+}
+
+.tahoe-glass-liquid .notification-banner.tahoe-notification-banner.tahoe-notification-banner-glass {
+    background-color: transparent !important;
+    background-gradient-start: transparent !important;
+    background-gradient-end: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.tahoe-notification-banner .message-header {
+    spacing: 6px;
+}
+
+.tahoe-notification-banner .message-source-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.58);
+}
+
+.tahoe-notification-banner .message-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+
+.tahoe-notification-banner .message-body {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.68);
+}
+
+.tahoe-theme-dark .tahoe-notification-banner .message-source-title {
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.tahoe-theme-dark .tahoe-notification-banner .message-title {
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-notification-banner .message-body {
+    color: rgba(255, 255, 255, 0.76);
+}
+
+.tahoe-notification-banner .message-close-button {
+    background-color: rgba(0, 0, 0, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.30);
+    border-radius: 999px;
+    color: rgba(0, 0, 0, 0.62);
+}
+
+.tahoe-theme-dark .tahoe-notification-banner .message-close-button {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.72);
+}

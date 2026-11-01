@@ -51,6 +51,7 @@ import {NetworkController} from './network.js';
 import {BluetoothController} from './bluetooth.js';
 import {BatteryController, PowerProfilesController, PROFILE_INFO, formatDuration} from './power.js';
 import {MediaController} from './media.js';
+import {TahoeNotifications} from './notifications.js';
 
 const LOG = '[tahoe-topbar/cc]';
 
@@ -206,7 +207,9 @@ export class TahoeControlCenter {
 
         this._ccRoot = null;
         this._ccRow = null;
+        this._ccColumn = null;
         this._ccStage = null;
+        this._notifications = null;
         this._editorOverlay = null;
         this._editor = null;
         this._menubarControls = [];
@@ -262,6 +265,13 @@ export class TahoeControlCenter {
         this._setupVolume();
 
         this._createPanelButtons();
+        try {
+            this._notifications = new TahoeNotifications(this);
+            this._ccColumn?.add_child(this._notifications.actor);
+        } catch (e) {
+            console.error(`${LOG} No se pudieron crear las notificaciones:`, e);
+            this._notifications = null;
+        }
         this._watchPanelLifetimes();
         try {
             this._editor = new ControlCenterEditor(this);
@@ -350,6 +360,7 @@ export class TahoeControlCenter {
             for (const key of [
                 'control-center-show-battery-percent',
                 'control-center-show-now-playing',
+                'control-center-notifications',
                 'control-center-layout',
                 'menubar-controls',
                 'glass-style',
@@ -379,6 +390,7 @@ export class TahoeControlCenter {
         this._refreshGlass();
         this._applyGlassLook();
         this._repaintDrawings();
+        this._notifications?.refreshLook();
         this._editor?.refreshLook?.();
         this._queueSync();
     }
@@ -440,6 +452,7 @@ export class TahoeControlCenter {
         }
 
         this._editor?.refreshGlass?.();
+        this._notifications?.refreshGlass();
 
         for (const [menu, owner] of [
             [this._batteryButton?.menu, 'cc-battery'],
@@ -526,6 +539,10 @@ export class TahoeControlCenter {
         }
         case 'control-center-layout':
             this._onLayoutChanged();
+            break;
+        case 'control-center-notifications':
+            this._notifications?.setEnabled(
+                this._getBoolean('control-center-notifications', true));
             break;
         case 'menubar-controls':
             this._onMenubarControlsChanged();
@@ -1027,9 +1044,10 @@ export class TahoeControlCenter {
             y_align: Clutter.ActorAlign.START,
         });
 
-        // La fila alberga [galería | CC]. La galería es hija del actor del
-        // menú, de modo que el grab de PopupMenuManager la considera "dentro"
-        // y no cierra el Centro de control al interactuar con ella.
+        // La fila alberga [galería | columna]. La columna contiene el CC y,
+        // debajo, la pila de notificaciones; así el CC se puede limpiar al
+        // cambiar de vista sin arrastrar la pila y la galería conserva su
+        // posición a la izquierda.
         this._ccRow = new St.BoxLayout({
             style_class: 'tahoe-cc-row',
             orientation: Clutter.Orientation.HORIZONTAL,
@@ -1037,7 +1055,15 @@ export class TahoeControlCenter {
             y_expand: true,
             y_align: Clutter.ActorAlign.START,
         });
-        this._ccRow.add_child(this._ccRoot);
+
+        this._ccColumn = new St.BoxLayout({
+            style_class: 'tahoe-cc-column',
+            orientation: Clutter.Orientation.VERTICAL,
+            x_expand: false,
+            y_align: Clutter.ActorAlign.START,
+        });
+        this._ccColumn.add_child(this._ccRoot);
+        this._ccRow.add_child(this._ccColumn);
 
         // Escenario con BinLayout: fila + capa para menú contextual y
         // proxies de arrastre (posicionados por translation_x/y).
@@ -1065,12 +1091,16 @@ export class TahoeControlCenter {
             if (open) {
                 this._view = 'main';
                 this._renderMain();
+                this._notifications?.setOpen(true);
                 this._network?.requestScan();
                 this._queueSync();
             }
         });
 
-        this._connect(this._ccButton.menu, 'menu-closed', () => this._clearView());
+        this._connect(this._ccButton.menu, 'menu-closed', () => {
+            this._notifications?.setOpen(false);
+            this._clearView();
+        });
 
         this._insertPanelButton(ROLES.controlCenter, this._ccButton);
     }
@@ -3919,6 +3949,15 @@ export class TahoeControlCenter {
         this._restoreExternalMenu();
         this._restoreQuickSettingsShortcut();
 
+        if (this._notifications) {
+            try {
+                this._notifications.destroy();
+            } catch (e) {
+                console.error(`${LOG} No se pudieron destruir las notificaciones:`, e);
+            }
+            this._notifications = null;
+        }
+
         if (this._externalSyncId) {
             try {
                 GLib.source_remove(this._externalSyncId);
@@ -3947,6 +3986,7 @@ export class TahoeControlCenter {
         this._soundButton = null;
         this._wifiButton = null;
         this._ccRoot = null;
+        this._ccColumn = null;
         this._batteryPopoverBox = null;
         this._wifiPopoverBox = null;
         this._soundPopoverBox = null;

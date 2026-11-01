@@ -814,10 +814,16 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
             'control-center-show-now-playing',
             _('Mostrar «Reproduciendo»'),
             _('Controles del reproductor multimedia activo (MPRIS).'));
+        const notifications = this._switchRow(
+            settings,
+            'control-center-notifications',
+            _('Notificaciones en el Centro de control'),
+            _('Pila de notificaciones bajo el CC y banners Liquid Glass arriba a la derecha.'));
         group.add(battery);
         group.add(media);
+        group.add(notifications);
 
-        for (const row of [battery, media]) {
+        for (const row of [battery, media, notifications]) {
             settings.bind('control-center-enabled', row, 'sensitive',
                 Gio.SettingsBindFlags.GET);
         }
