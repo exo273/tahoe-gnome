@@ -8,9 +8,11 @@
 //   dock.destroy();
 //
 // El módulo no toca prefs.js ni el esquema: lee todas las claves dock-* con
-// valores por defecto defensivos. Vive enteramente en uiGroup mediante
-// Main.layoutManager.addChrome(), sin affectsStruts, y esconde el dash nativo
-// mientras está activo (restaurándolo en destroy).
+// valores por defecto defensivos. El dock visual vive en uiGroup mediante
+// Main.layoutManager.addChrome() sin affectsStruts; además mantiene un actor
+// de reserva transparente (solo con autohide desactivado) que sí afecta a los
+// struts para que las ventanas maximizadas no queden debajo del dock.
+// Esconde el dash nativo mientras está activo (restaurándolo en destroy).
 
 'use strict';
 
@@ -144,6 +146,15 @@ export class TahoeDock {
         this._dashWasReactive = true;
         this._dashDestroyId = 0;
         this._trashDialog = null;
+
+        // Actor invisible que reserva el borde inferior/lateral en los
+        // struts de Meta. No es el dock visual: se añade y quita del chrome
+        // según enabled/autohide porque cambiar su visibilidad no actualiza
+        // los struts en GNOME Shell.
+        this._reserve = null;
+        this._reserveChrome = false;
+        this._rootWidth = 0;
+        this._rootHeight = 0;
 
         this._interfaceSettings = null;
         this._interfaceSignalId = 0;
@@ -437,6 +448,136 @@ export class TahoeDock {
         }
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Reserva de struts (workarea)                                        */
+    /* ------------------------------------------------------------------ */
+
+    _isMonitorFullscreen() {
+        try {
+            return Boolean(Main.layoutManager.primaryMonitor?.inFullscreen);
+        } catch (_e) {
+            return false;
+        }
+    }
+
+    _createReserve() {
+        if (this._reserve)
+            return this._reserve;
+
+        this._reserve = new St.Widget({
+            name: 'tahoe-dock-reserve',
+            reactive: false,
+            can_focus: false,
+            track_hover: false,
+            opacity: 0,
+            visible: true,
+        });
+        this._reserveChrome = false;
+        this._reserve.connect('destroy', () => {
+            if (this._reserve) {
+                this._reserve = null;
+                this._reserveChrome = false;
+            }
+        });
+        return this._reserve;
+    }
+
+    /*
+     * Añade o actualiza el actor de reserva. Solo debe existir con el dock
+     * habilitado y sin autohide: con autohide el borde se libera. Se coloca
+     * pegado al borde correspondiente del monitor primario y con el tamaño
+     * del dock más sus dos márgenes, de modo que el workarea termina justo
+     * por encima del dock (dejando su margen) y las maximizadas no lo tapan.
+     */
+    _syncReserve() {
+        if (this._destroyed) {
+            this._removeReserve();
+            return;
+        }
+
+        if (!this._enabled || this._autohide) {
+            this._removeReserve();
+            return;
+        }
+
+        const monitor = Main.layoutManager.primaryMonitor;
+        const width = this._rootWidth;
+        const height = this._rootHeight;
+        if (!monitor || !(width > 0) || !(height > 0)) {
+            this._removeReserve();
+            return;
+        }
+
+        const gap = this._px(DOCK_MARGIN);
+        let x;
+        let y;
+        let reserveWidth;
+        let reserveHeight;
+
+        if (this._position === 'bottom') {
+            // Debe abarcar todo el ancho del monitor para que LayoutManager
+            // lo clasifique como strut inferior. Se suman los dos márgenes
+            // (inferior y superior) para que el workarea termine un margen
+            // por encima del borde visible del dock.
+            reserveWidth = monitor.width;
+            reserveHeight = height + gap * 2;
+            x = monitor.x;
+            y = monitor.y + monitor.height - reserveHeight;
+        } else if (this._position === 'left') {
+            reserveWidth = width + gap * 2;
+            reserveHeight = monitor.height;
+            x = monitor.x;
+            y = monitor.y;
+        } else {
+            reserveWidth = width + gap * 2;
+            reserveHeight = monitor.height;
+            x = monitor.x + monitor.width - reserveWidth;
+            y = monitor.y;
+        }
+
+        const reserve = this._createReserve();
+        reserve.set_size(Math.max(1, Math.round(reserveWidth)),
+            Math.max(1, Math.round(reserveHeight)));
+        reserve.set_position(Math.round(x), Math.round(y));
+        reserve.show();
+
+        if (this._reserveChrome)
+            return;
+
+        try {
+            Main.layoutManager.addChrome(reserve, {
+                affectsStruts: true,
+                trackFullscreen: false,
+            });
+            this._reserveChrome = true;
+        } catch (e) {
+            console.error(`${LOG} No se pudo añadir la reserva de struts:`, e);
+            this._removeReserve();
+        }
+    }
+
+    _removeReserve() {
+        if (!this._reserve)
+            return;
+
+        const reserve = this._reserve;
+        this._reserve = null;
+        try {
+            if (this._reserveChrome)
+                Main.layoutManager.removeChrome(reserve);
+            else
+                reserve.get_parent()?.remove_child(reserve);
+        } catch (_e) {
+            // Ya estaba fuera del chrome.
+        }
+        this._reserveChrome = false;
+        try {
+            reserve.destroy();
+        } catch (_e) {
+            // Ya destruido con el uiGroup.
+        }
+    }
+
     _buildTooltip() {
         this._tooltip = new St.Label({
             style_class: 'tahoe-dock-tooltip',
@@ -584,6 +725,10 @@ export class TahoeDock {
         });
 
         connect(Main.layoutManager, 'monitors-changed', () => this._onMonitorsChanged());
+        connect(global.display, 'in-fullscreen-changed', () => {
+            if (!this._destroyed)
+                this._applyVisibility(false);
+        });
 
         try {
             const context = St.ThemeContext.get_for_stage(global.stage);
@@ -786,12 +931,49 @@ export class TahoeDock {
     _createDownloadsItem() {
         let item = null;
         const count = this._downloads?.count ?? 0;
-        const imagePath = GLib.build_filenamev([
-            this._extensionDir, 'dock', 'icons', 'downloads.svg',
-        ]);
+        const iconSize = this._iconSizePx;
+
+        let theme = null;
+        try {
+            theme = new St.IconTheme();
+        } catch (_e) {
+            theme = null;
+        }
+        const hasIcon = name => {
+            try {
+                return Boolean(theme?.has_icon?.(name));
+            } catch (_e) {
+                return false;
+            }
+        };
+
+        // Igual que Finder: carpeta de Descargas del tema (nunca un SVG
+        // inventado ni la variante -symbolic, que sale blanca y plana).
+        let gicon = null;
+        let iconName = 'folder-download';
+        if (hasIcon('folder-download')) {
+            gicon = Gio.ThemedIcon.new('folder-download');
+            iconName = 'folder-download';
+        } else {
+            try {
+                const folder = this._downloads?.folder;
+                if (folder) {
+                    const info = folder.query_info('standard::icon',
+                        Gio.FileQueryInfoFlags.NONE, null);
+                    gicon = info.get_icon();
+                }
+            } catch (_e) {
+                gicon = null;
+            }
+            if (!gicon)
+                iconName = hasIcon('folder') ? 'folder' : 'folder-download';
+        }
+
         item = new DockControlItem(this, {
             id: 'downloads',
-            gicon: new Gio.FileIcon({file: Gio.File.new_for_path(imagePath)}),
+            gicon,
+            iconName,
+            iconSize,
             label: count > 0 ? `Descargas (${count})` : 'Descargas',
             styleClass: 'tahoe-dock-downloads',
             badge: true,
@@ -807,9 +989,42 @@ export class TahoeDock {
     _createTrashItem() {
         let item = null;
         const count = this._trash?.count ?? 0;
+
+        let theme = null;
+        try {
+            theme = new St.IconTheme();
+        } catch (_e) {
+            theme = null;
+        }
+        const hasIcon = name => {
+            try {
+                return Boolean(theme?.has_icon?.(name));
+            } catch (_e) {
+                return false;
+            }
+        };
+
+        // La papelera usa el icono del tema (llena/vacía), no el symbolic.
+        let iconName = count > 0 ? 'user-trash-full' : 'user-trash';
+        if (!hasIcon(iconName))
+            iconName = hasIcon('user-trash') ? 'user-trash' : 'user-trash-full';
+
+        let gicon = hasIcon(iconName) ? Gio.ThemedIcon.new(iconName) : null;
+        if (!gicon) {
+            try {
+                const info = Gio.File.new_for_uri('trash:///').query_info(
+                    'standard::icon', Gio.FileQueryInfoFlags.NONE, null);
+                gicon = info.get_icon();
+            } catch (_e) {
+                gicon = null;
+            }
+        }
+
         item = new DockControlItem(this, {
             id: 'trash',
-            iconName: count > 0 ? 'user-trash-full-symbolic' : 'user-trash-symbolic',
+            gicon,
+            iconName,
+            iconSize: this._iconSizePx,
             label: count > 0 ? `Papelera (${count})` : 'Papelera',
             styleClass: 'tahoe-dock-trash',
             badge: true,
@@ -914,6 +1129,7 @@ export class TahoeDock {
         this._rootWidth = width;
         this._rootHeight = height;
         this._magCenters = null;
+        this._syncReserve();
     }
 
     _applyEnabled() {
@@ -925,6 +1141,7 @@ export class TahoeDock {
                 this._root.reactive = false;
             this._closeMenus();
             this._hideTooltip();
+            this._removeReserve();
             this._restoreOriginalDash();
             this.refreshGlass();
             this._updateRevealHandler();
@@ -941,6 +1158,8 @@ export class TahoeDock {
         if (this._destroyed || !this._root)
             return;
 
+        this._syncReserve();
+
         if (!this._enabled) {
             this._root.hide();
             this._root.reactive = false;
@@ -950,6 +1169,13 @@ export class TahoeDock {
         if (!this._autohide) {
             this._revealed = true;
             this._cancelHideTimer();
+            // En pantalla completa Meta ignora el workarea; ocultar el dock
+            // visual evita tapar la app. La reserva se mantiene y no molesta.
+            if (this._isMonitorFullscreen()) {
+                this._root.hide();
+                this._root.reactive = false;
+                return;
+            }
             this._showRoot(animated);
             return;
         }
@@ -1907,9 +2133,28 @@ export class TahoeDock {
         if (item && !item._destroyed) {
             item.setBadge(count);
             item.setName(count > 0 ? `Papelera (${count})` : 'Papelera');
-            item.setIconName(count > 0
-                ? 'user-trash-full-symbolic'
-                : 'user-trash-symbolic');
+
+            let theme = null;
+            try {
+                theme = new St.IconTheme();
+            } catch (_e) {
+                theme = null;
+            }
+            const hasIcon = name => {
+                try {
+                    return Boolean(theme?.has_icon?.(name));
+                } catch (_e) {
+                    return false;
+                }
+            };
+            let iconName = count > 0 ? 'user-trash-full' : 'user-trash';
+            if (!hasIcon(iconName))
+                iconName = hasIcon('user-trash') ? 'user-trash' : 'user-trash-full';
+            if (hasIcon(iconName))
+                item.setGIcon(Gio.ThemedIcon.new(iconName));
+            else
+                item.setIconName(iconName);
+
             if (item._menu?.isOpen) {
                 populateTrashMenu(item._menu, this._trash, {
                     onConfirm: () => this._emptyTrash(),
@@ -2195,6 +2440,8 @@ export class TahoeDock {
             return;
         this._destroyed = true;
         this._ready = false;
+
+        this._removeReserve();
 
         for (const id of [this._rebuildId, this._indicatorId, this._hideTimerId,
             this._tooltipShowId, this._dashRetryId]) {

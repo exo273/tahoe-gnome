@@ -53,30 +53,34 @@
     border-radius: 14px;
     background-color: transparent;
     border: none;
+    box-shadow: none;
     color: inherit;
 }
 
-.tahoe-dock-item:hover {
-    background-color: rgba(0, 0, 0, 0.065);
-}
-
-.tahoe-theme-dark .tahoe-dock-item:hover {
-    background-color: rgba(255, 255, 255, 0.10);
-}
-
+/*
+ * Sin "losa": el hover no pinta ningún fondo. La magnificación y el tooltip
+ * ya comunican la interacción, y el fondo rectangular se veía como una caja
+ * oscura detrás del icono (sobre todo al ampliarlo).
+ */
+.tahoe-dock-item:hover,
+.tahoe-theme-dark .tahoe-dock-item:hover,
 .tahoe-dock-item:active,
-.tahoe-dock-item:checked {
-    background-color: rgba(0, 0, 0, 0.12);
-}
-
 .tahoe-theme-dark .tahoe-dock-item:active,
-.tahoe-theme-dark .tahoe-dock-item:checked {
-    background-color: rgba(255, 255, 255, 0.16);
+.tahoe-dock-item:checked,
+.tahoe-theme-dark .tahoe-dock-item:checked,
+.tahoe-dock-item:focus {
+    background-color: transparent;
+    box-shadow: none;
 }
 
-.tahoe-dock-item:focus {
-    background-color: rgba(10, 132, 255, 0.18);
-    box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.80);
+/*
+ * Aro de foco de teclado (items.js lo muestra sólo en key-focus-in).
+ * Sin fondo: un borde redondeado fino alrededor del icono, no una losa.
+ */
+.tahoe-dock-focus-ring {
+    background-color: transparent;
+    border: 2px solid rgba(10, 132, 255, 0.72);
+    border-radius: 14px;
 }
 
 .tahoe-dock-item-running {
@@ -153,14 +157,14 @@
 }
 
 .tahoe-dock-tooltip {
-    background-color: rgba(30, 30, 32, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background-color: rgba(28, 28, 30, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: 8px;
     color: #ffffff;
     font-size: 12px;
     font-weight: 600;
     padding: 4px 10px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.34);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
 }
 
 .tahoe-dock-menu .popup-menu-content {

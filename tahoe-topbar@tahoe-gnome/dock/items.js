@@ -37,6 +37,7 @@ export class DockItemBase {
         this._icon = null;
         this._iconStack = null;
         this._indicatorBox = null;
+        this._focusRing = null;
 
         this.actor = new St.Button({
             style_class: `${DOCK_ITEM_STYLE} ${styleClass}`.trim(),
@@ -63,6 +64,17 @@ export class DockItemBase {
                 this._dock._showTooltip(this);
             else
                 this._dock._hideTooltip(this);
+        });
+        // El aro de foco sólo debe verse al navegar con teclado, nunca tras
+        // un clic: se muestra el actor del aro en key-focus-in y se oculta al
+        // salir. No se pinta ningún fondo sobre el botón.
+        this.actor.connect('key-focus-in', () => {
+            if (!this._destroyed)
+                this._focusRing?.show();
+        });
+        this.actor.connect('key-focus-out', () => {
+            if (!this._destroyed)
+                this._focusRing?.hide();
         });
         this.actor.connect('destroy', () => {
             this._destroyed = true;
@@ -96,6 +108,20 @@ export class DockItemBase {
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.START,
         });
+
+        // Aro de foco de teclado: actor propio para que sea redondeado y no
+        // pinte ningún fondo detrás del icono (la losa que se veía al hover).
+        const ringSize = iconSize + dock._px(6);
+        this._focusRing = new St.Widget({
+            style_class: 'tahoe-dock-focus-ring',
+            width: ringSize,
+            height: ringSize,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: false,
+            visible: false,
+        });
+        this._iconStack.add_child(this._focusRing);
 
         this._icon = iconActor;
         if (this._icon) {
@@ -216,6 +242,7 @@ export class DockItemBase {
         this._icon = null;
         this._iconStack = null;
         this._indicatorBox = null;
+        this._focusRing = null;
         this._badge = null;
     }
 }
@@ -391,11 +418,14 @@ export class DockControlItem extends DockItemBase {
         this._name = label;
 
         const size = iconSize ?? Math.round(dock.iconSizePx * 0.82);
-        const icon = new St.Icon({
-            gicon: gicon ?? null,
-            icon_name: gicon ? null : (iconName ?? 'application-x-executable-symbolic'),
-            icon_size: size,
-        });
+        // No pasar gicon: null junto a icon_name: St.Icon aplica las
+        // propiedades en orden y un gicon nulo puede borrar el nombre.
+        const iconProps = {icon_size: size};
+        if (gicon)
+            iconProps.gicon = gicon;
+        else
+            iconProps.icon_name = iconName ?? 'application-x-executable-symbolic';
+        const icon = new St.Icon(iconProps);
 
         this._buildContent(icon, {badge});
     }
@@ -431,6 +461,7 @@ export class DockControlItem extends DockItemBase {
     setGIcon(gicon) {
         if (!this._icon)
             return;
+        this._icon.icon_name = null;
         this._icon.gicon = gicon;
     }
 
