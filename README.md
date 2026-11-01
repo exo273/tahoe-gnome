@@ -8,7 +8,8 @@ Probado en Fedora 44 con GNOME 50.6 (Wayland).
 - **Barra superior** transparente estilo Tahoe; el color del texto se adapta al fondo de pantalla.
 - **Menú de manzana** con logo configurable (manzana, contorno, Fedora, GNOME o imagen propia), iconos y atajos.
 - **Barra de menús dinámica**: en el escritorio muestra los menús tipo Finder (Archivos, Archivo, Edición, Visualización, Ir, Ventana, Ayuda); con una app activa, lee sus acciones reales por D-Bus (`org.gtk.Actions` / `org.gtk.Menus`), usa perfiles para apps comunes o menús genéricos.
-- **Centro de control** Liquid Glass (sustituye los Ajustes rápidos, Super+S): Wi‑Fi, Bluetooth, modo avión, Concentración, modo oscuro, luz nocturna, brillo, sonido, reproducción MPRIS, perfil de energía… con desenfoque de fondo.
+- **Centro de control** Liquid Glass (sustituye los Ajustes rápidos, Super+S): Wi‑Fi, Bluetooth, modo avión, Concentración, modo oscuro, luz nocturna, brillo, sonido, reproducción MPRIS, perfil de energía… con desenfoque de fondo. Los controles se pueden añadir, quitar, cambiar de tamaño y ordenar con **Editar controles**; también admite botones de otras extensiones como Caffeine.
+- **Notificaciones**: banners Liquid Glass arriba a la derecha con el panel cerrado; al abrirlo aparecen debajo, agrupadas por aplicación. Se pueden borrar deslizando, con la X individual o con **Borrar todo**. El reloj muestra la hora sin abrir el calendario de GNOME.
 - **Cristal Liquid Glass** con refracción real en el Centro de control, los menús, la barra superior (píldora o islas) y la ventana «Acerca de»; se elige en Preferencias → Cristal (Liquid Glass, desenfoque simple o sin efecto).
 - **Indicadores** de batería, sonido y Wi‑Fi con menús propios.
 - **Acerca de este Mac** con imagen personalizable y datos del equipo autodetectados.
