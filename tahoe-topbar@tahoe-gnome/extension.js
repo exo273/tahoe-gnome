@@ -92,6 +92,10 @@ export default class TahoeTopBarExtension extends Extension {
         this._dateMenu = null;
         this._dateMenuOrigParent = null;
         this._dateMenuOrigIndex = -1;
+        this._calendarDisabled = false;
+        this._calendarMenu = null;
+        this._calendarGestureWasEnabled = false;
+        this._originalToggleCalendar = null;
         this._activitiesHidden = false;
         this._activitiesWasVisible = true;
         this._appMenuHidden = false;
@@ -184,6 +188,7 @@ export default class TahoeTopBarExtension extends Extension {
             this._about = null;
         }
 
+        this._restoreCalendarAccess();
         this._disconnectClock();
         this._restoreClockText();
         this._restoreClockPosition();
@@ -822,6 +827,8 @@ export default class TahoeTopBarExtension extends Extension {
             this._clockOrigText = dateMenu._clockDisplay.text;
         }
 
+        this._disableCalendarAccess();
+
         if (this._settings.get_boolean('move-clock-right'))
             this._moveClockRight();
         else
@@ -838,6 +845,40 @@ export default class TahoeTopBarExtension extends Extension {
             this._disconnectClock();
             this._restoreClockText();
         }
+    }
+
+    _disableCalendarAccess() {
+        if (this._calendarDisabled || !this._dateMenu?.menu)
+            return;
+
+        const dateMenu = this._dateMenu;
+        this._calendarMenu = dateMenu.menu;
+        this._calendarGestureWasEnabled = dateMenu._clickGesture?.get_enabled() ?? false;
+        dateMenu._clickGesture?.set_enabled(false);
+        dateMenu.menu.close();
+        Main.panel.menuManager.removeMenu(dateMenu.menu);
+
+        // Super+V llama directamente a toggleCalendar(), sin pulsar el reloj.
+        this._originalToggleCalendar = Main.panel.toggleCalendar;
+        Main.panel.toggleCalendar = () => {};
+        this._calendarDisabled = true;
+    }
+
+    _restoreCalendarAccess() {
+        if (!this._calendarDisabled)
+            return;
+
+        if (this._originalToggleCalendar)
+            Main.panel.toggleCalendar = this._originalToggleCalendar;
+        this._originalToggleCalendar = null;
+
+        const dateMenu = this._dateMenu;
+        if (dateMenu?.menu === this._calendarMenu) {
+            dateMenu._clickGesture?.set_enabled(this._calendarGestureWasEnabled);
+            Main.panel.menuManager.addMenu(dateMenu.menu);
+        }
+        this._calendarMenu = null;
+        this._calendarDisabled = false;
     }
 
     _applyClockText() {
