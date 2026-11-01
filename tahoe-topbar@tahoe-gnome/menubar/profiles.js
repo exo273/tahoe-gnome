@@ -978,13 +978,15 @@ export function buildFinderMenus() {
 export function buildFinderAppMenuItems(ctx) {
     const items = [];
     const nautilusActions = ctx?.nautilusActions;
+    const appName = ctx?.appName?.trim() || 'Finder';
+    const aboutLabel = `Acerca de ${appName}`;
 
     if (nautilusActions?.has('about')) {
-        items.push(item('Acerca de Archivos', {gaction: 'nautilus.about'}));
+        items.push(item(aboutLabel, {gaction: 'nautilus.about'}));
     } else {
-        items.push(item('Acerca de Archivos', {
+        items.push(item(aboutLabel, {
             run: () => {
-                // Sin acción «about»: basta con traer Archivos al frente.
+                // Sin acción «about»: basta con traer Nautilus al frente.
                 const app = ShellApp('org.gnome.Nautilus.desktop');
                 if (app)
                     app.activate();

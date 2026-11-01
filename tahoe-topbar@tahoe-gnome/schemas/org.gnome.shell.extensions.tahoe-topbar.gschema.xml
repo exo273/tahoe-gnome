@@ -110,7 +110,7 @@
       <summary>Mostrar barra de menús dinámica (Archivo, Edición, Visualización, Ventana, Ayuda…)</summary>
     </key>
     <key name="desktop-app-name" type="s">
-      <default>'Archivos'</default>
+      <default>'Finder'</default>
       <summary>Nombre mostrado cuando el escritorio está enfocado (equivalente a Finder)</summary>
     </key>
     <key name="menu-use-app-actions" type="b">

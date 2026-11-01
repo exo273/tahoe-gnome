@@ -721,7 +721,7 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
             settings,
             'desktop-app-name',
             _('Nombre en el escritorio'),
-            _('Nombre mostrado cuando no hay ninguna ventana activa (como «Finder» en macOS).')));
+            _('Nombre mostrado cuando no hay ninguna ventana activa. Por defecto «Finder», como en macOS; las acciones siguen abriendo Nautilus.')));
 
         return group;
     }

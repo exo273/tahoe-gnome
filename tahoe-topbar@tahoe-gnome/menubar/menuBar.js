@@ -146,6 +146,7 @@ export class TahoeMenuBar {
         this._signals = [];
 
         this._destroyed = false;
+        this._tornDown = false;
         this._rebuildId = 0;
         this._rebuildToken = 0;
         this._cancellable = null;
@@ -171,10 +172,19 @@ export class TahoeMenuBar {
         });
 
         this._actorDestroyId = this.actor.connect('destroy', () => {
-            // El panel puede destruir el actor antes que la extensión.
-            if (!this._destroyed) {
-                this._destroyed = true;
+            // El panel puede destruir el actor antes que la extensión, y
+            // durante el apagado del shell pueden faltar objetos globales.
+            if (this._destroyed)
+                return;
+
+            this._destroyed = true;
+            try {
                 this._teardown(false);
+            } catch (error) {
+                // Nunca dejar que un fallo al desmontar rompa el apagado.
+                logError('Error al desmontar la barra de menús', error);
+                this._tornDown = true;
+                this.actor = null;
             }
         });
 
@@ -225,17 +235,23 @@ export class TahoeMenuBar {
     }
 
     _unloadStylesheet() {
-        if (!this._theme || !this._cssFile)
+        const theme = this._theme;
+        const file = this._cssFile;
+
+        // Soltar las referencias primero: así el teardown es idempotente
+        // aunque unload_stylesheet falle durante el apagado del shell.
+        this._theme = null;
+        this._cssFile = null;
+
+        if (!theme || !file)
             return;
 
         try {
-            this._theme.unload_stylesheet(this._cssFile);
+            theme.unload_stylesheet(file);
         } catch (error) {
-            logError('No se pudo descargar menubar/menubar.css', error);
+            // En Wayland, al apagar el shell el tema puede haberse ido ya.
+            console.debug('menubar/menubar.css ya no estaba cargado:', error.message);
         }
-
-        this._theme = null;
-        this._cssFile = null;
     }
 
     /* -------------------------------------------------------------- */
@@ -444,7 +460,7 @@ export class TahoeMenuBar {
 
         if (desktop) {
             const name = this._settings?.get_string('desktop-app-name')?.trim();
-            ctx.appName = name || 'Archivos';
+            ctx.appName = name || 'Finder';
             return ctx;
         }
 
@@ -1568,10 +1584,18 @@ export class TahoeMenuBar {
             return;
 
         this._destroyed = true;
+        if (this._tornDown) {
+            this.actor = null;
+            return;
+        }
         this._teardown(true);
     }
 
     _teardown(destroyActor) {
+        if (this._tornDown)
+            return;
+        this._tornDown = true;
+
         this._detachAllMenuGlass();
         if (this._glassUnsubscribe) {
             this._glassUnsubscribe();
