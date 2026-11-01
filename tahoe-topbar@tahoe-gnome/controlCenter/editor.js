@@ -131,6 +131,10 @@ export class ControlCenterEditor {
         this._stageCaptureId = 0;
 
         this._drag = null;
+        this._dropHint = null;
+        this._barHint = null;
+        this._timeouts = new Set();
+        this._layoutCommit = null;
         this._context = null;
         this._footerNormal = null;
         this._footerConfirm = null;
@@ -170,7 +174,10 @@ export class ControlCenterEditor {
         } catch (_e) {
             // Sin foco.
         }
+        this._flushLayoutCommit();
         this._cancelDrag();
+        this._clearDropHint(true);
+        this._clearTimers();
         this._closeContext();
         this._endBarEdit();
         this._disconnectStageCapture();
@@ -193,6 +200,12 @@ export class ControlCenterEditor {
     onMainRendered(_placed, _grid) {
         if (!this._editing)
             return;
+
+        // Si el CC se reconstruye por otra vía mientras hay un arrastre,
+        // los wrappers del drag dejan de existir: cancelamos antes de tocar
+        // actores liberados (el proxy y los hints se limpian aquí).
+        if (this._drag)
+            this._cancelDrag();
 
         this._closeContext();
         this._decorateMain();
@@ -818,67 +831,110 @@ export class ControlCenterEditor {
 
     _reorderAnimated(id, targetIndex) {
         const cc = this._cc;
+        if (!cc)
+            return;
+
         const layout = cc.getLayout();
         const from = layout.findIndex(entry => entry.id === id);
         if (from < 0)
             return;
 
-        const [entry] = layout.splice(from, 1);
-        const to = Math.clamp(targetIndex, 0, layout.length);
-        layout.splice(to, 0, entry);
+        const next = [...layout];
+        const [entry] = next.splice(from, 1);
+        const to = Math.clamp(targetIndex, 0, next.length);
+        next.splice(to, 0, entry);
 
         if (from === to) {
             cc._persistLayout(layout, false);
             return;
         }
 
-        cc._persistLayout(layout, false);
+        this._commitReorderLayout(next, null);
+    }
 
-        const current = cc._mainRefs?.controls ?? [];
-        const byId = new Map(current.map(item => [item.control.id, item]));
-        const reordered = layout
-            .map(item => byId.get(item.id))
-            .filter(Boolean);
-        if (reordered.length !== current.length)
+    /**
+     * Aplica `next` sin reconstruir el CC: primero "hornea" las traslaciones
+     * de la vista previa (lo que se ve ahora pasa a ser x/y) y después anima
+     * cada wrapper a su celda final. El reordenado real de hijos se hace al
+     * terminar, que es lo que fija el LayoutManager.
+     */
+    _commitReorderLayout(next, plan) {
+        const cc = this._cc;
+        const grid = cc?._mainRefs?.grid;
+        if (!cc || !grid)
             return;
 
-        const positions = this._computePositions(reordered);
-        const grid = cc._mainRefs?.grid;
-        if (!grid)
-            return;
+        cc._persistLayout(next, false);
 
-        for (let i = 0; i < reordered.length; i++) {
-            const wrapper = reordered[i].wrapper;
-            const target = positions[i];
-            if (!wrapper || !target)
-                continue;
+        const placed = cc._mainRefs?.controls ?? [];
+        const byId = new Map(placed.map(item => [item.control.id, item]));
+        let targets = plan?.posById ?? null;
 
-            wrapper.ease({
-                x: target.x,
-                y: target.y,
-                duration: 200,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            });
+        if (!targets) {
+            const entries = next
+                .filter(entry => byId.has(entry.id))
+                .map(entry => ({id: entry.id, size: entry.size}));
+            const positions = this._computePositions(entries);
+            targets = new Map(entries.map((entry, index) => [
+                entry.id, positions[index],
+            ]));
         }
 
-        cc._mainRefs.controls = reordered;
+        for (const item of placed) {
+            const wrapper = item.wrapper;
+            if (!wrapper?.get_parent())
+                continue;
 
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 230, () => {
-            if (cc._destroyed || !cc._mainRefs)
-                return GLib.SOURCE_REMOVE;
+            const visualX = wrapper.x + (wrapper.translation_x || 0);
+            const visualY = wrapper.y + (wrapper.translation_y || 0);
 
-            const gridNow = cc._mainRefs.grid;
-            if (gridNow !== grid)
-                return GLib.SOURCE_REMOVE;
+            try {
+                wrapper.remove_all_transitions();
+                wrapper.translation_x = 0;
+                wrapper.translation_y = 0;
+                wrapper.x = visualX;
+                wrapper.y = visualY;
+            } catch (_e) {
+                continue;
+            }
 
-            for (const item of reordered) {
-                const wrapper = item.wrapper;
+            const target = targets.get(item.control.id);
+            if (!target)
+                continue;
+
+            try {
+                wrapper.ease({
+                    x: target.x,
+                    y: target.y,
+                    duration: 200,
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                });
+            } catch (_e) {
+                // Wrapper destruido entre medias.
+            }
+        }
+
+        cc._mainRefs.controls = next
+            .map(entry => byId.get(entry.id))
+            .filter(Boolean);
+
+        this._scheduleLayoutCommit(() => {
+            if (cc._destroyed || cc._mainRefs?.grid !== grid)
+                return;
+
+            for (const entry of next) {
+                const item = byId.get(entry.id);
+                const wrapper = item?.wrapper;
                 if (!wrapper?.get_parent())
                     continue;
+
                 try {
+                    wrapper.remove_all_transitions();
+                    wrapper.translation_x = 0;
+                    wrapper.translation_y = 0;
                     grid.remove_child(wrapper);
                     grid.add_child(wrapper);
-                    const span = sizeSpan(item.size);
+                    const span = sizeSpan(entry.size);
                     grid.layout_manager.setSpan(grid, wrapper,
                         span.columns, span.rows);
                 } catch (_e) {
@@ -886,10 +942,7 @@ export class ControlCenterEditor {
                 }
             }
             grid.queue_relayout();
-            return GLib.SOURCE_REMOVE;
         });
-
-        this._refreshGallery();
     }
 
     _computePositions(placed) {
@@ -936,6 +989,592 @@ export class ControlCenterEditor {
         }
 
         return positions;
+    }
+
+    // ------------------------------------------------------------------
+    // Utilidades de ciclo de vida del arrastre
+    // ------------------------------------------------------------------
+
+    _later(ms, callback) {
+        const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+            this._timeouts.delete(id);
+            try {
+                callback();
+            } catch (e) {
+                console.error(`${LOG} Error en temporizador del editor:`, e);
+            }
+            return GLib.SOURCE_REMOVE;
+        });
+        this._timeouts.add(id);
+        return id;
+    }
+
+    _cancelTimer(id) {
+        if (!id)
+            return;
+        this._timeouts.delete(id);
+        try {
+            GLib.source_remove(id);
+        } catch (_e) {
+            // Ya se ejecutó.
+        }
+    }
+
+    _clearTimers() {
+        for (const id of [...this._timeouts])
+            this._cancelTimer(id);
+    }
+
+    /**
+     * El commit que reordena los hijos de la grid no se puede cancelar a
+     * medias: si se sale del editor antes, se ejecuta en el acto.
+     */
+    _scheduleLayoutCommit(callback) {
+        this._cancelLayoutCommit();
+        const id = this._later(220, () => {
+            this._layoutCommit = null;
+            callback();
+        });
+        this._layoutCommit = {id, callback};
+    }
+
+    _cancelLayoutCommit() {
+        const commit = this._layoutCommit;
+        if (!commit)
+            return;
+        this._layoutCommit = null;
+        this._cancelTimer(commit.id);
+    }
+
+    _flushLayoutCommit() {
+        const commit = this._layoutCommit;
+        if (!commit)
+            return;
+        this._layoutCommit = null;
+        this._cancelTimer(commit.id);
+        try {
+            commit.callback();
+        } catch (e) {
+            console.error(`${LOG} No se pudo completar el reordenado:`, e);
+        }
+    }
+
+    _dragEntrySize(drag) {
+        const cc = this._cc;
+        const existing = (cc?._mainRefs?.controls ?? [])
+            .find(item => item.control.id === drag.id);
+        if (existing)
+            return existing.size;
+        if (drag.item?.size)
+            return drag.item.size;
+
+        const entry = this._catalog().find(item => item.id === drag.id);
+        if (!entry)
+            return 'small';
+        if (entry.sizes?.includes(entry.defaultSize))
+            return entry.defaultSize;
+        return entry.sizes?.[0] ?? 'small';
+    }
+
+    _basePositions() {
+        const cc = this._cc;
+        const placed = cc?._mainRefs?.controls ?? [];
+        const byId = new Set(placed.map(item => item.control.id));
+        const entries = (cc?.getLayout() ?? [])
+            .filter(entry => byId.has(entry.id))
+            .map(entry => ({id: entry.id, size: entry.size}));
+        const positions = this._computePositions(entries);
+        return new Map(entries.map((entry, index) => [
+            entry.id, positions[index],
+        ]));
+    }
+
+    /**
+     * Distribución "virtual" con el control ya colocado en `targetIndex`.
+     * No toca el LayoutManager: sólo sirve para calcular a qué celda debe
+     * viajar cada wrapper (y dónde queda el hueco de inserción).
+     */
+    _buildPreviewPlan(drag, targetIndex) {
+        const cc = this._cc;
+        if (!cc)
+            return null;
+
+        const placed = cc._mainRefs?.controls ?? [];
+        const byId = new Map(placed.map(item => [item.control.id, item]));
+        const layout = cc.getLayout();
+        const rest = layout
+            .filter(entry => entry.id !== drag.id && byId.has(entry.id))
+            .map(entry => ({id: entry.id, size: entry.size}));
+
+        const entry = {id: drag.id, size: this._dragEntrySize(drag)};
+        const index = Math.clamp(targetIndex, 0, rest.length);
+        const entries = [
+            ...rest.slice(0, index),
+            entry,
+            ...rest.slice(index),
+        ];
+
+        const positions = this._computePositions(entries);
+        const posById = new Map();
+        entries.forEach((item, i) => posById.set(item.id, positions[i]));
+
+        const span = sizeSpan(entry.size);
+        const cell = px(62);
+        const gap = px(12);
+        return {
+            index,
+            entry,
+            entries,
+            posById,
+            hole: positions[index],
+            width: span.columns * cell + (span.columns - 1) * gap,
+            height: span.rows * cell + (span.rows - 1) * gap,
+        };
+    }
+
+    _applyPreview(drag, plan) {
+        const placed = this._cc?._mainRefs?.controls ?? [];
+
+        for (const item of placed) {
+            const wrapper = item.wrapper;
+            if (!wrapper?.get_parent())
+                continue;
+
+            const id = item.control.id;
+            const target = plan.posById.get(id);
+            if (!target)
+                continue;
+
+            const base = drag.base.get(id) ?? {x: wrapper.x, y: wrapper.y};
+            const dx = Math.round(target.x - base.x);
+            const dy = Math.round(target.y - base.y);
+            if (!Number.isFinite(dx) || !Number.isFinite(dy))
+                continue;
+            const previous = drag.targets.get(id);
+
+            if (previous &&
+                Math.abs(previous.x - dx) < 0.5 &&
+                Math.abs(previous.y - dy) < 0.5)
+                continue;
+
+            drag.targets.set(id, {x: dx, y: dy});
+
+            try {
+                wrapper.remove_all_transitions();
+                wrapper.ease({
+                    translation_x: dx,
+                    translation_y: dy,
+                    duration: 200,
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                });
+            } catch (_e) {
+                // Wrapper destruido.
+            }
+        }
+    }
+
+    _restorePreview(drag, duration = 200) {
+        const placed = this._cc?._mainRefs?.controls ?? [];
+        for (const item of placed) {
+            const wrapper = item.wrapper;
+            if (!wrapper?.get_parent())
+                continue;
+            if (!drag.targets.has(item.control.id))
+                continue;
+
+            try {
+                wrapper.remove_all_transitions();
+                wrapper.ease({
+                    translation_x: 0,
+                    translation_y: 0,
+                    duration,
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                });
+            } catch (_e) {
+                // Wrapper destruido.
+            }
+        }
+
+        drag.targets.clear();
+        drag.plan = null;
+        drag.targetIndex = null;
+        this._hideDropHint();
+        this._clearBarHint(true);
+    }
+
+    _restorePreviewNow(drag) {
+        const placed = this._cc?._mainRefs?.controls ?? [];
+        for (const item of placed) {
+            const wrapper = item.wrapper;
+            if (!wrapper?.get_parent())
+                continue;
+            try {
+                wrapper.remove_all_transitions();
+                wrapper.translation_x = 0;
+                wrapper.translation_y = 0;
+            } catch (_e) {
+                // Wrapper destruido.
+            }
+        }
+        drag.targets.clear();
+        drag.plan = null;
+        drag.targetIndex = null;
+        this._hideDropHint();
+        this._clearBarHint(true);
+    }
+
+    _setSourceOpacity(info, opacity) {
+        try {
+            if (info.source === 'cc' && info.item?.wrapper)
+                info.item.wrapper.opacity = opacity;
+            else if (info.button)
+                info.button.opacity = opacity;
+        } catch (_e) {
+            // El actor de origen ya no existe.
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Hueco de inserción y pista de la barra
+    // ------------------------------------------------------------------
+
+    _showDropHint(stageX, stageY, width, height, drag) {
+        const overlay = this._cc?._editorOverlay;
+        if (!overlay)
+            return;
+        if (![stageX, stageY, width, height].every(Number.isFinite))
+            return;
+
+        let hint = this._dropHint;
+        if (!hint) {
+            const dark = this._cc?._tahoeTheme?.isDark ?? true;
+            const border = dark
+                ? 'rgba(255, 255, 255, 0.62)'
+                : 'rgba(0, 0, 0, 0.38)';
+            const fill = dark
+                ? 'rgba(255, 255, 255, 0.07)'
+                : 'rgba(0, 0, 0, 0.05)';
+
+            hint = new St.Widget({
+                style_class: 'tahoe-cc-drop-hint',
+                reactive: false,
+                x_expand: false,
+                y_expand: false,
+                x_align: Clutter.ActorAlign.START,
+                y_align: Clutter.ActorAlign.START,
+            });
+            hint.style = `background-color: ${fill}; border: 1.5px dashed ${border}; border-radius: 18px;`;
+            hint.opacity = 0;
+            this._dropHint = hint;
+        }
+
+        if (!hint.get_parent()) {
+            overlay.add_child(hint);
+            try {
+                hint.ease({
+                    opacity: 255,
+                    duration: 140,
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                });
+            } catch (_e) {
+                hint.opacity = 255;
+            }
+        }
+
+        hint.set_size(Math.max(1, Math.round(width)),
+            Math.max(1, Math.round(height)));
+        hint._overlayStageX = Math.round(stageX);
+        hint._overlayStageY = Math.round(stageY);
+
+        if (drag?.proxy) {
+            try {
+                overlay.set_child_below_sibling(hint, drag.proxy);
+            } catch (_e) {
+                // El proxy ya no está.
+            }
+        }
+        overlay.queue_relayout();
+    }
+
+    _showDropHintForPlan(drag, plan) {
+        const grid = this._cc?._mainRefs?.grid;
+        if (!grid || !plan)
+            return;
+        const [gx, gy] = grid.get_transformed_position();
+        this._showDropHint(gx + plan.hole.x, gy + plan.hole.y,
+            plan.width, plan.height, drag);
+    }
+
+    _hideDropHint() {
+        const hint = this._dropHint;
+        this._dropHint = null;
+        if (!hint)
+            return;
+        try {
+            hint.destroy();
+        } catch (_e) {
+            // Ya destruido.
+        }
+    }
+
+    _clearDropHint(immediate = false) {
+        this._hideDropHint();
+        this._clearBarHint(immediate);
+    }
+
+    /**
+     * Línea vertical flotante sobre la barra. Vive en uiGroup para no
+     * alterar la disposición del panel (y por tanto el anclaje del CC)
+     * mientras se arrastra.
+     */
+    _showBarHint(index, excludeId) {
+        const cc = this._cc;
+        if (!cc)
+            return;
+
+        const ids = cc.getMenubarControls().filter(id => id !== excludeId);
+        let anchor = null;
+        let after = false;
+
+        if (index < ids.length) {
+            anchor = cc._getMenubarButton(ids[index])?.container ?? null;
+        } else if (ids.length > 0) {
+            anchor = cc._getMenubarButton(ids[ids.length - 1])?.container ?? null;
+            after = true;
+        } else {
+            anchor = cc._ccButton?.container ?? null;
+        }
+
+        if (!anchor?.get_parent()) {
+            this._clearBarHint(true);
+            return;
+        }
+
+        const [ax, ay, aw, ah] = rectOf(anchor);
+        const gap = px(6);
+        const height = Math.max(14, Math.round(ah - px(8)));
+        const x = after ? ax + aw + gap : ax - gap;
+        const y = ay + Math.max(0, Math.round((ah - height) / 2));
+        if (![x, y, height].every(Number.isFinite)) {
+            this._clearBarHint(true);
+            return;
+        }
+
+        let hint = this._barHint;
+        if (!hint) {
+            const dark = cc._tahoeTheme?.isDark ?? true;
+            hint = new St.Widget({
+                style_class: 'tahoe-cc-bar-insert-hint',
+                reactive: false,
+                width: px(3),
+                height,
+                opacity: 0,
+            });
+            hint.set_pivot_point(0.5, 0.5);
+            hint.style = dark
+                ? 'background-color: rgba(255, 255, 255, 0.92); border-radius: 2px; box-shadow: 0 0 6px rgba(255, 255, 255, 0.65);'
+                : 'background-color: rgba(0, 0, 0, 0.72); border-radius: 2px; box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);';
+            this._barHint = hint;
+        }
+
+        const parent = Main.layoutManager?.uiGroup ?? global.stage;
+        if (hint.get_parent() !== parent) {
+            if (hint.get_parent())
+                hint.get_parent().remove_child(hint);
+            parent.add_child(hint);
+            try {
+                hint.ease({
+                    opacity: 255,
+                    scale_y: 1,
+                    duration: 140,
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                });
+            } catch (_e) {
+                hint.opacity = 255;
+            }
+        }
+
+        hint.set_size(px(3), height);
+        hint.set_position(Math.round(x), Math.round(y));
+    }
+
+    _clearBarHint(immediate = false) {
+        const hint = this._barHint;
+        this._barHint = null;
+        if (!hint)
+            return;
+
+        if (immediate || !hint.get_parent()) {
+            try {
+                hint.destroy();
+            } catch (_e) {
+                // Ya destruido.
+            }
+            return;
+        }
+
+        try {
+            hint.ease({
+                opacity: 0,
+                scale_y: 0.6,
+                duration: 140,
+                mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                onComplete: () => {
+                    try {
+                        hint.destroy();
+                    } catch (_e) {
+                        // Ya destruido.
+                    }
+                },
+            });
+        } catch (_e) {
+            try {
+                hint.destroy();
+            } catch (_error) {
+                // Ignorar.
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Proxy y cierre del arrastre
+    // ------------------------------------------------------------------
+
+    _animateProxy(drag, stageX, stageY, options = {}) {
+        const overlay = this._cc?._editorOverlay;
+        const proxy = drag?.proxy;
+        if (!overlay || !proxy?.get_parent())
+            return false;
+
+        // transform_stage_point() devuelve [ok, x, y].
+        const [ok, lx, ly] = overlay.transform_stage_point(stageX, stageY);
+        if (!ok || !Number.isFinite(lx) || !Number.isFinite(ly))
+            return false;
+
+        const {
+            duration = 190,
+            fade = false,
+            scale = 1,
+        } = options;
+
+        try {
+            proxy.remove_all_transitions();
+            proxy.ease({
+                translation_x: lx,
+                translation_y: ly,
+                scale_x: scale,
+                scale_y: scale,
+                duration,
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            });
+
+            if (fade) {
+                proxy.ease({
+                    opacity: 0,
+                    delay: Math.round(duration * 0.55),
+                    duration: Math.round(duration * 0.45),
+                    mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                });
+            }
+            return true;
+        } catch (_e) {
+            return false;
+        }
+    }
+
+    _proxyHoleTarget(drag, plan) {
+        const grid = this._cc?._mainRefs?.grid;
+        if (!grid || !plan?.hole)
+            return null;
+        const [gx, gy] = grid.get_transformed_position();
+        const x = gx + plan.hole.x;
+        const y = gy + plan.hole.y;
+        if (!Number.isFinite(x) || !Number.isFinite(y))
+            return null;
+        return [x, y];
+    }
+
+    _proxyOriginTarget(drag) {
+        const x = drag.start[0] - drag.offsetX;
+        const y = drag.start[1] - drag.offsetY;
+        if (!Number.isFinite(x) || !Number.isFinite(y))
+            return null;
+        return [x, y];
+    }
+
+    _proxyBarTarget(drag) {
+        const hint = this._barHint;
+        if (!hint?.get_parent())
+            return null;
+        const [x, y, w, h] = rectOf(hint);
+        const px = x + w / 2 - drag.offsetX;
+        const py = y + h / 2 - drag.offsetY;
+        if (!Number.isFinite(px) || !Number.isFinite(py))
+            return null;
+        return [px, py];
+    }
+
+    _destroyDragProxy(drag) {
+        if (!drag)
+            return;
+        try {
+            drag.clone?.set_source(null);
+        } catch (_e) {
+            // La fuente ya no existe.
+        }
+        drag.clone = null;
+        try {
+            drag.proxy?.destroy();
+        } catch (_e) {
+            // Ya destruido.
+        }
+        drag.proxy = null;
+    }
+
+    _finishDrag(drag, delay, action = null) {
+        this._later(delay, () => {
+            if (drag.cancelled || this._drag !== drag)
+                return;
+
+            this._destroyDragProxy(drag);
+            if (this._drag === drag)
+                this._drag = null;
+
+            if (!action)
+                return;
+            try {
+                action();
+            } catch (e) {
+                console.error(`${LOG} No se pudo completar el arrastre:`, e);
+            }
+        });
+    }
+
+    _commitGridDrop(drag, plan) {
+        const cc = this._cc;
+        if (!cc || !plan)
+            return;
+
+        const layout = cc.getLayout();
+        const from = layout.findIndex(entry => entry.id === drag.id);
+
+        if (from >= 0) {
+            const rest = layout.filter((_entry, index) => index !== from);
+            const to = Math.clamp(plan.index, 0, rest.length);
+            if (to === from) {
+                this._restorePreviewNow(drag);
+                return;
+            }
+
+            const next = [...rest];
+            next.splice(to, 0, layout[from]);
+            this._commitReorderLayout(next, plan);
+            return;
+        }
+
+        const entry = this._catalog().find(item => item.id === drag.id);
+        if (entry)
+            this._addControl(entry, Math.clamp(plan.index, 0, layout.length));
     }
 
     // ------------------------------------------------------------------
@@ -1258,6 +1897,10 @@ export class ControlCenterEditor {
         const onPress = event => {
             if (event.get_button() !== 1 || isDecoration(event))
                 return Clutter.EVENT_PROPAGATE;
+            // Mientras el proxy de un soltado anterior termina de volar no
+            // se inicia otro arrastre: su temporizador de limpieza sigue vivo.
+            if (this._drag)
+                return Clutter.EVENT_PROPAGATE;
 
             pending = {
                 ...info,
@@ -1340,24 +1983,34 @@ export class ControlCenterEditor {
         if (!overlay)
             return;
 
-        const [ow, oh] = [pending.width, pending.height];
+        const ow = Math.max(1, Math.round(pending.width));
+        const oh = Math.max(1, Math.round(pending.height));
         const proxy = new St.Widget({
             style_class: 'tahoe-cc-drag-proxy',
-            width: Math.round(ow * 1.05),
-            height: Math.round(oh * 1.05),
+            width: ow,
+            height: oh,
             x_expand: false,
             y_expand: false,
             x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.START,
             reactive: false,
         });
+        proxy.set_pivot_point(0.5, 0.5);
+        proxy.set_scale(1, 1);
+        proxy.opacity = 0;
+        try {
+            // La sombra del CSS se refuerza mientras el control va "en el aire".
+            proxy.style = 'box-shadow: 0 18px 46px rgba(0, 0, 0, 0.46);';
+        } catch (_e) {
+            // Estilo no disponible.
+        }
 
         let clone = null;
         try {
             clone = new Clutter.Clone({
                 source: pending.actor,
-                width: Math.round(ow * 1.05),
-                height: Math.round(oh * 1.05),
+                width: ow,
+                height: oh,
             });
             clone.set_pivot_point(0.5, 0.5);
             proxy.add_child(clone);
@@ -1374,19 +2027,41 @@ export class ControlCenterEditor {
             grab = null;
         }
 
-        this._drag = {
+        const drag = {
             ...pending,
             proxy,
             clone,
             grab,
             offsetX: ow * 0.5,
             offsetY: oh * 0.5,
+            phase: 'drag',
+            zone: null,
+            plan: null,
+            targetIndex: null,
+            targets: new Map(),
+            base: this._basePositions(),
+            start: [stageX, stageY],
+            lastX: stageX,
+            lastY: stageY,
+            cancelled: false,
         };
+        this._drag = drag;
 
-        if (pending.source === 'cc' && pending.item?.wrapper)
-            pending.item.wrapper.opacity = 110;
-        else if (pending.button)
-            pending.button.opacity = 140;
+        this._setSourceOpacity(drag, pending.source === 'cc' ? 110 : 140);
+
+        // El proxy nace un poco más pequeño y sube a escala 1.05.
+        try {
+            proxy.ease({
+                opacity: 255,
+                scale_x: 1.05,
+                scale_y: 1.05,
+                duration: 170,
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            });
+        } catch (_e) {
+            proxy.opacity = 255;
+            proxy.set_scale(1.05, 1.05);
+        }
 
         this._moveDrag(stageX, stageY);
     }
@@ -1394,7 +2069,7 @@ export class ControlCenterEditor {
     _moveDrag(stageX, stageY) {
         const drag = this._drag;
         const overlay = this._cc?._editorOverlay;
-        if (!drag || !overlay)
+        if (!drag || drag.phase !== 'drag' || !overlay)
             return;
 
         // transform_stage_point() devuelve [ok, x, y].
@@ -1411,68 +2086,135 @@ export class ControlCenterEditor {
 
     _endDrag(stageX, stageY, info) {
         const drag = this._drag;
-        this._drag = null;
+        if (!drag) {
+            this._clearDropHint();
+            return;
+        }
 
-        if (drag?.grab) {
+        drag.phase = 'drop';
+        drag.releaseX = stageX;
+        drag.releaseY = stageY;
+
+        if (drag.grab) {
             try {
                 if (!drag.grab.is_revoked())
                     drag.grab.dismiss();
             } catch (_e) {
                 // Ignorar.
             }
+            drag.grab = null;
         }
 
-        try {
-            drag?.proxy?.destroy();
-        } catch (_e) {
-            // Ignorar.
-        }
-
-        if (info.source === 'cc' && info.item?.wrapper)
-            info.item.wrapper.opacity = 255;
-        else if (info.button)
-            info.button.opacity = 255;
-
-        this._clearDropHint();
+        // El control real vuelve a mostrarse en el hueco mientras el proxy
+        // termina de encajar; así el soltado no parpadea.
+        this._setSourceOpacity(info, 255);
 
         const cc = this._cc;
-        if (!cc)
+        if (!cc || !drag.proxy) {
+            this._cancelDrag();
             return;
+        }
 
-        const panelBottom = this._panelBottom();
-        if (stageY <= panelBottom) {
+        const inBar = stageY <= this._panelBottom();
+        const grid = cc._mainRefs?.grid;
+        const gridRect = grid ? rectOf(grid) : null;
+        const inGrid = !inBar && gridRect && contains(gridRect, stageX, stageY);
+
+        if (inBar) {
+            this._restorePreview(drag);
+            this._hideDropHint();
             const index = this._barInsertionIndex(stageX, info.id);
+            this._showBarHint(index, info.id);
+
+            // Sobre la barra el hueco se cierra y el proxy vuela al indicador.
+            const target = this._proxyBarTarget(drag) ??
+                this._proxyOriginTarget(drag);
+            if (target) {
+                this._animateProxy(drag, target[0], target[1],
+                    {duration: 180, fade: true, scale: 1});
+            } else {
+                try {
+                    drag.proxy.ease({
+                        opacity: 0,
+                        duration: 180,
+                        mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                    });
+                } catch (_e) {
+                    // Ignorar.
+                }
+            }
+
             if (cc.getMenubarControls().includes(info.id))
                 cc.moveMenubarControl(info.id, index);
             else
                 cc.addMenubarControl(info.id, index);
+
+            this._finishDrag(drag, 300, () => this._clearBarHint(true));
             return;
         }
 
-        const grid = cc._mainRefs?.grid;
-        if (!grid)
-            return;
+        this._clearBarHint(true);
 
-        const gridRect = rectOf(grid);
-        if (!contains(gridRect, stageX, stageY))
-            return;
+        if (inGrid) {
+            const targetIndex = this._layoutIndexAt(stageX, stageY, info.id);
+            const plan = drag.plan && drag.plan.index === targetIndex
+                ? drag.plan
+                : this._buildPreviewPlan(drag, targetIndex);
 
-        const targetIndex = this._layoutIndexAt(stageX, stageY, info.id);
+            if (plan) {
+                drag.plan = plan;
+                drag.targetIndex = targetIndex;
+                this._applyPreview(drag, plan);
+                this._showDropHintForPlan(drag, plan);
 
-        if (info.source === 'cc') {
-            this._reorderAnimated(info.id, targetIndex);
-            return;
+                const hole = this._proxyHoleTarget(drag, plan);
+                if (hole) {
+                    this._animateProxy(drag, hole[0], hole[1],
+                        {duration: 190, fade: true, scale: 1});
+                }
+
+                const layout = cc.getLayout();
+                const from = layout.findIndex(entry => entry.id === info.id);
+                const sameSpot = from >= 0 &&
+                    from === Math.clamp(plan.index, 0, layout.length - 1);
+
+                if (sameSpot) {
+                    // Se soltó en su propia celda: los vecinos vuelven y el
+                    // proxy regresa al hueco original.
+                    this._restorePreview(drag);
+                    this._finishDrag(drag, 230, () => this._hideDropHint());
+                    return;
+                }
+
+                if (info.source === 'cc') {
+                    // El origen está en la rejilla: aplicamos ya el layout;
+                    // el proxy sigue volando al hueco (los wrappers no se
+                    // reconstruyen en este camino).
+                    this._commitGridDrop(drag, plan);
+                    this._finishDrag(drag, 230, () => this._hideDropHint());
+                } else {
+                    // Desde la galería: el commit reconstruye la galería y
+                    // destruiría la fuente del clon. Se hace justo cuando el
+                    // proxy ya aterrizó.
+                    this._finishDrag(drag, 220, () => {
+                        this._hideDropHint();
+                        this._commitGridDrop(drag, plan);
+                    });
+                }
+                return;
+            }
         }
 
-        // Galería: si ya está, reordena; si no, inserta en la posición.
-        if (cc.getLayout().some(entry => entry.id === info.id)) {
-            this._reorderAnimated(info.id, targetIndex);
-            return;
+        // Fuera de la rejilla y de la barra: los vecinos recuperan su sitio
+        // y el clon vuelve al punto de origen.
+        this._restorePreview(drag);
+        this._hideDropHint();
+        const origin = this._proxyOriginTarget(drag);
+        if (origin) {
+            this._animateProxy(drag, origin[0], origin[1],
+                {duration: 220, fade: true, scale: 1});
         }
-
-        const entry = this._catalog().find(item => item.id === info.id);
-        if (entry)
-            this._addControl(entry, targetIndex);
+        this._finishDrag(drag, 250);
     }
 
     /**
@@ -1551,6 +2293,14 @@ export class ControlCenterEditor {
 
         for (const item of placed) {
             const rect = rectOf(item.wrapper);
+            // La geometría de referencia es la celda sin las traslaciones
+            // de la vista previa: si no, el hueco "persigue" al puntero y
+            // el índice oscila mientras los vecinos se mueven.
+            const wrapper = item.wrapper;
+            if (wrapper) {
+                rect[0] -= wrapper.translation_x || 0;
+                rect[1] -= wrapper.translation_y || 0;
+            }
             const cx = rect[0] + rect[2] / 2;
             const cy = rect[1] + rect[3] / 2;
 
@@ -1599,19 +2349,81 @@ export class ControlCenterEditor {
         return index;
     }
 
-    _updateDropHint(_stageX, _stageY) {
-        // El propio proxy y la animación de reflujo son la pista visual.
-    }
+    /**
+     * Pista en vivo: según la zona bajo el puntero se abre el hueco en la
+     * rejilla (moviendo los wrappers con translation_x/y) o se muestra la
+     * línea de inserción de la barra. No se reconstruye el CC.
+     */
+    _updateDropHint(stageX, stageY) {
+        const drag = this._drag;
+        const cc = this._cc;
+        if (!drag || drag.phase !== 'drag' || !cc)
+            return;
 
-    _clearDropHint() {
+        const inBar = stageY <= this._panelBottom();
+        const grid = cc._mainRefs?.grid;
+        let inGrid = false;
+
+        if (!inBar && grid) {
+            const [gx, gy, gw, gh] = rectOf(grid);
+            const pad = px(10);
+            inGrid = stageX >= gx - pad && stageX <= gx + gw + pad &&
+                stageY >= gy - pad && stageY <= gy + gh + pad;
+        }
+
+        if (inBar) {
+            if (drag.zone !== 'bar')
+                this._restorePreview(drag);
+
+            const index = this._barInsertionIndex(stageX, drag.id);
+            this._showBarHint(index, drag.id);
+            drag.zone = 'bar';
+            drag.plan = null;
+            drag.targetIndex = null;
+            return;
+        }
+
+        this._clearBarHint(true);
+
+        if (inGrid && grid) {
+            const targetIndex = this._layoutIndexAt(stageX, stageY, drag.id);
+            const samePlan = drag.zone === 'grid' && drag.plan &&
+                drag.plan.index === targetIndex;
+
+            if (!samePlan) {
+                const plan = this._buildPreviewPlan(drag, targetIndex);
+                if (plan) {
+                    drag.plan = plan;
+                    drag.targetIndex = targetIndex;
+                    this._applyPreview(drag, plan);
+                }
+            }
+
+            if (drag.plan)
+                this._showDropHintForPlan(drag, drag.plan);
+
+            drag.zone = 'grid';
+            return;
+        }
+
+        if (drag.zone !== 'none') {
+            this._restorePreview(drag);
+            drag.zone = 'none';
+        }
     }
 
     _cancelDrag() {
-        if (!this._drag)
-            return;
-
         const drag = this._drag;
         this._drag = null;
+
+        this._hideDropHint();
+        this._clearBarHint(true);
+
+        if (!drag)
+            return;
+
+        drag.cancelled = true;
+        drag.phase = 'cancelled';
 
         try {
             if (drag.grab && !drag.grab.is_revoked())
@@ -1619,17 +2431,11 @@ export class ControlCenterEditor {
         } catch (_e) {
             // Ignorar.
         }
+        drag.grab = null;
 
-        try {
-            drag.proxy?.destroy();
-        } catch (_e) {
-            // Ignorar.
-        }
-
-        if (drag.source === 'cc' && drag.item?.wrapper)
-            drag.item.wrapper.opacity = 255;
-        else if (drag.button)
-            drag.button.opacity = 255;
+        this._restorePreviewNow(drag);
+        this._setSourceOpacity(drag, 255);
+        this._destroyDragProxy(drag);
     }
 
     // ------------------------------------------------------------------
@@ -1765,6 +2571,7 @@ export class ControlCenterEditor {
     }
 
     _endBarEdit() {
+        this._clearBarHint(true);
         for (const [id, backup] of [...this._barBackup]) {
             this._barBackup.delete(id);
             const {button, container, original, wrapper, wasReactive} = backup;
@@ -1812,7 +2619,7 @@ export class ControlCenterEditor {
         let grab = null;
 
         wrapper.connect('button-press-event', (actor, event) => {
-            if (event.get_button() !== 1)
+            if (event.get_button() !== 1 || this._drag)
                 return Clutter.EVENT_PROPAGATE;
             press = {start: event.get_coords(), started: false};
             return Clutter.EVENT_PROPAGATE;
@@ -1832,8 +2639,19 @@ export class ControlCenterEditor {
                 } catch (_e) {
                     grab = null;
                 }
+                try {
+                    wrapper.ease({
+                        scale_x: 1.08,
+                        scale_y: 1.08,
+                        duration: 160,
+                        mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                    });
+                } catch (_e) {
+                    // Ignorar.
+                }
             }
             press.last = [x, y];
+            this._showBarHint(this._barInsertionIndex(x, id), id);
             return Clutter.EVENT_STOP;
         });
 
@@ -1857,6 +2675,7 @@ export class ControlCenterEditor {
 
             const [x] = event.get_coords();
             const cc = this._cc;
+            this._clearBarHint(true);
             if (!cc)
                 return Clutter.EVENT_STOP;
 

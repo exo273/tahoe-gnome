@@ -437,6 +437,14 @@ export function createPill(options) {
     pill.add_child(circle);
     pill.add_child(textButton);
 
+    // St.BoxLayout no limita el ancho natural de St.Label por sí solo.
+    // Se fija el ancho disponible para que Pango pueda elipsar sin desbordar.
+    const maxTextWidth = 58;
+    textButton.set_width(maxTextWidth);
+    labels.set_width(maxTextWidth);
+    titleLabel.set_width(maxTextWidth);
+    subtitleLabel.set_width(maxTextWidth);
+
     return {
         pill,
         circle,

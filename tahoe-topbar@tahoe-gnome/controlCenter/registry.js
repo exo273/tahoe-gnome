@@ -464,7 +464,13 @@ function focusControl(cc) {
                     accessibleName: 'Concentración',
                 });
                 pill.pill.add_style_class_name('tahoe-cc-pill-focus');
-                pill.titleLabel.clutter_text.set_ellipsize(Pango.EllipsizeMode.NONE);
+                // El nombre completo queda en accesibilidad; dentro de una
+                // píldora de 136 px el texto debe acortarse, nunca desbordar.
+                pill.titleLabel.clutter_text.set_ellipsize(Pango.EllipsizeMode.END);
+                pill.titleLabel.set_width(78);
+                pill.subtitleLabel.set_width(78);
+                pill.textButton.set_width(78);
+                pill.textButton.get_child().set_width(78);
 
                 return {
                     actor: pill.pill,
