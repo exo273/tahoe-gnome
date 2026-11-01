@@ -60,7 +60,27 @@ function lookupSchema(id) {
 
     try {
         const source = Gio.SettingsSchemaSource.get_default();
-        return source?.lookup(id, true) ?? null;
+        const schema = source?.lookup(id, true) ?? null;
+        if (schema || id !== USER_THEME_SCHEMA)
+            return schema;
+
+        // La extensión User Themes guarda su esquema dentro de su propio
+        // directorio, fuera de la fuente por defecto: buscarlo allí.
+        const uuid = 'user-theme@gnome-shell-extensions.gcampax.github.com';
+        const dirs = [
+            GLib.build_filenamev([GLib.get_user_data_dir(), 'gnome-shell', 'extensions', uuid, 'schemas']),
+            ...GLib.get_system_data_dirs().map(d =>
+                GLib.build_filenamev([d, 'gnome-shell', 'extensions', uuid, 'schemas'])),
+        ];
+        for (const dir of dirs) {
+            if (!GLib.file_test(GLib.build_filenamev([dir, 'gschemas.compiled']), GLib.FileTest.EXISTS))
+                continue;
+            const extSource = Gio.SettingsSchemaSource.new_from_directory(dir, source, false);
+            const found = extSource.lookup(id, false);
+            if (found)
+                return found;
+        }
+        return null;
     } catch (e) {
         console.error(`${LOG} No se pudo buscar el esquema ${id}:`, e);
         return null;
