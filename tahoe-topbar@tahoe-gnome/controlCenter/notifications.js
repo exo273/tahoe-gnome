@@ -75,6 +75,52 @@ function panDeltaX(gesture) {
     return 0;
 }
 
+/**
+ * Gesto horizontal compartido por las tarjetas de la pila y el banner nativo.
+ * Devuelve un objeto con detach() para retirar acción y conexiones.
+ */
+function addHorizontalPan(actor, {onBegin, onUpdate, onEnd}) {
+    const gesture = new Clutter.PanGesture();
+    gesture.set_begin_threshold(px(12));
+    try {
+        gesture.set_pan_axis(Clutter.PanAxis.X);
+        gesture.set_required_button(Clutter.BUTTON_PRIMARY);
+    } catch (_e) {
+        // API antigua: se deja el eje por defecto.
+    }
+
+    const ids = [
+        gesture.connect('recognize', () => {
+            onBegin?.();
+            return Clutter.EVENT_STOP;
+        }),
+        gesture.connect('pan-update', () => onUpdate?.(panDeltaX(gesture))),
+        gesture.connect('end', () => onEnd?.(panDeltaX(gesture))),
+    ];
+
+    actor.add_action(gesture);
+
+    return {
+        gesture,
+        detach(removeAction = true) {
+            for (const id of ids) {
+                try {
+                    gesture.disconnect(id);
+                } catch (_e) {
+                    // Gesto ya liberado.
+                }
+            }
+            if (removeAction) {
+                try {
+                    actor.remove_action(gesture);
+                } catch (_e) {
+                    // Actor ya destruido.
+                }
+            }
+        },
+    };
+}
+
 function iconFor(notification) {
     if (notification?.gicon)
         return notification.gicon;
@@ -118,6 +164,7 @@ export class TahoeNotifications {
         this._bannerSignals = new Map();
         this._banner = null;
         this._bannerHandle = null;
+        this._bannerSwipe = null;
         this._bannerBlockSaved = false;
         this._bannerBlockPrevious = false;
         this._bannerStyleSaved = false;
@@ -273,6 +320,7 @@ export class TahoeNotifications {
         this._open = open;
         if (open) {
             this._blockBanners(true);
+            this._destroyBannerSwipe();
             this._box.show();
             this._render();
         } else {
@@ -280,6 +328,7 @@ export class TahoeNotifications {
             this._box.hide();
             this._destroyCards();
             this._blockBanners(false);
+            this._syncBannerSwipe();
         }
     }
 
@@ -596,6 +645,7 @@ export class TahoeNotifications {
 
     _restoreBannerStyle() {
         this._blockBanners(false);
+        this._destroyBannerSwipe();
         this._destroyBannerGlass();
 
         const bin = this._bannerBin;
@@ -665,7 +715,8 @@ export class TahoeNotifications {
     _onBannerChildRemoved(child) {
         if (this._banner === child)
             this._banner = null;
-        this._unwatchBanner(child);
+        this._unwatchBanner(child, false);
+        this._destroyBannerSwipe(false);
         this._bannerHandle = null;
         try {
             child.remove_style_class_name('tahoe-notification-banner-glass');
@@ -683,13 +734,14 @@ export class TahoeNotifications {
 
         const ids = [
             this._connect(banner, 'notify::mapped',
-                () => this._syncBannerGlass()),
+                () => this._syncBannerDecorations()),
             this._connect(banner, 'notify::visible',
-                () => this._syncBannerGlass()),
+                () => this._syncBannerDecorations()),
             this._connect(banner, 'destroy', () => {
                 if (this._banner === banner)
                     this._banner = null;
-                this._unwatchBanner(banner);
+                this._unwatchBanner(banner, false);
+                this._destroyBannerSwipe(false);
                 // El banner está siendo destruido: el propio GlassHandle se
                 // encarga de liberar su superficie al recibir «destroy».
                 // Volver a destruirlo aquí puede tocar un actor ya liberado
@@ -703,10 +755,15 @@ export class TahoeNotifications {
             }),
         ];
         this._bannerSignals.set(banner, ids);
-        this._syncBannerGlass();
+        this._syncBannerDecorations();
     }
 
-    _unwatchBanner(banner) {
+    _syncBannerDecorations() {
+        this._syncBannerGlass();
+        this._syncBannerSwipe();
+    }
+
+    _unwatchBanner(banner, removeSwipeAction = true) {
         const ids = this._bannerSignals.get(banner);
         if (!ids)
             return;
@@ -718,6 +775,8 @@ export class TahoeNotifications {
                 // Ignorar.
             }
         }
+        if (this._bannerSwipe?.banner === banner)
+            this._destroyBannerSwipe(removeSwipeAction);
     }
 
     _canUseLiquidGlass() {
@@ -753,6 +812,123 @@ export class TahoeNotifications {
             this._bannerHandle = null;
             console.error(`${LOG} No se pudo aplicar cristal al banner:`, e);
         }
+    }
+
+    _syncBannerSwipe() {
+        if (!this._enabled || this._open || this._destroyed) {
+            this._destroyBannerSwipe();
+            return;
+        }
+
+        const banner = this._banner ?? this._tray?._banner ?? null;
+        if (!banner || !banner.mapped || !banner.visible) {
+            this._destroyBannerSwipe();
+            return;
+        }
+
+        this._attachBannerSwipe(banner);
+    }
+
+    _attachBannerSwipe(banner) {
+        if (!banner || this._bannerSwipe?.banner === banner)
+            return;
+
+        this._destroyBannerSwipe();
+
+        const swipe = {
+            banner,
+            savedNotification: null,
+            completed: false,
+            pan: null,
+        };
+
+        swipe.pan = addHorizontalPan(banner, {
+            onBegin: () => {
+                if (this._bannerSwipe !== swipe || swipe.completed)
+                    return;
+                swipe.savedNotification =
+                    banner.notification ?? this._tray?._notification ?? null;
+                // Evita que el clic nativo active la notificación al soltar
+                // después de arrastrar; se restaura al cancelar el gesto.
+                if (swipe.savedNotification)
+                    banner.notification = null;
+            },
+            onUpdate: deltaX => {
+                if (this._bannerSwipe !== swipe)
+                    return;
+                banner.translation_x = deltaX;
+                banner.opacity =
+                    Math.max(100, 255 - Math.round(Math.abs(deltaX) / 2));
+            },
+            onEnd: deltaX => this._endBannerSwipe(swipe, deltaX),
+        });
+        this._bannerSwipe = swipe;
+    }
+
+    _endBannerSwipe(swipe, deltaX) {
+        const banner = swipe.banner;
+        const notification = swipe.savedNotification ??
+            this._tray?._notification ?? null;
+        const width = banner?.width || px(380);
+        const threshold = Math.max(px(SWIPE_MIN), width * SWIPE_RATIO);
+
+        if (banner && notification && Math.abs(deltaX) >= threshold) {
+            const direction = Math.sign(deltaX) || 1;
+            swipe.completed = true;
+            swipe.savedNotification = null;
+            banner.ease({
+                translation_x: direction * (width + px(40)),
+                opacity: 0,
+                duration: 160,
+                mode: Clutter.AnimationMode.EASE_IN_QUAD,
+            });
+            this._addTimeout(160, () => {
+                try {
+                    notification.destroy(
+                        MessageTray.NotificationDestroyedReason.DISMISSED);
+                } catch (e) {
+                    console.error(`${LOG} No se pudo cerrar el banner:`, e);
+                }
+            });
+            return;
+        }
+
+        if (banner) {
+            banner.ease({
+                translation_x: 0,
+                opacity: 255,
+                duration: 160,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+        // Se restaura después del evento de release para que el clic nacido
+        // del gesto no active la notificación.
+        this._addTimeout(0, () => {
+            if (banner?.notification == null && swipe.savedNotification)
+                banner.notification = swipe.savedNotification;
+            swipe.savedNotification = null;
+        });
+    }
+
+    _destroyBannerSwipe(removeAction = true) {
+        const swipe = this._bannerSwipe;
+        this._bannerSwipe = null;
+        if (!swipe)
+            return;
+
+        swipe.pan?.detach(removeAction);
+
+        if (removeAction && swipe.savedNotification && swipe.banner) {
+            try {
+                swipe.banner.translation_x = 0;
+                swipe.banner.opacity = 255;
+                if (swipe.banner.notification == null)
+                    swipe.banner.notification = swipe.savedNotification;
+            } catch (_e) {
+                // Banner ya destruido.
+            }
+        }
+        swipe.savedNotification = null;
     }
 
     _destroyBannerGlass() {
@@ -1189,54 +1365,42 @@ export class TahoeNotifications {
     }
 
     _attachSwipe(card, notification) {
-        const gesture = new Clutter.PanGesture();
-        gesture.set_begin_threshold(px(12));
-        try {
-            gesture.set_pan_axis(Clutter.PanAxis.X);
-            gesture.set_required_button(Clutter.BUTTON_PRIMARY);
-        } catch (_e) {
-            // API antigua: se deja el eje por defecto.
-        }
-
-        gesture.connect('recognize', () => {
-            card._tahoeSuppressClick = true;
-            return Clutter.EVENT_STOP;
+        addHorizontalPan(card, {
+            onBegin: () => {
+                card._tahoeSuppressClick = true;
+            },
+            onUpdate: deltaX => {
+                card.translation_x = deltaX;
+                card.opacity =
+                    Math.max(100, 255 - Math.round(Math.abs(deltaX) / 2));
+            },
+            onEnd: deltaX => {
+                const width = card.width || px(PANEL_WIDTH);
+                const threshold =
+                    Math.max(px(SWIPE_MIN), width * SWIPE_RATIO);
+                if (Math.abs(deltaX) >= threshold) {
+                    const direction = Math.sign(deltaX) || 1;
+                    card.reactive = false;
+                    card.ease({
+                        translation_x: direction * (width + px(24)),
+                        opacity: 0,
+                        duration: 150,
+                        mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                    });
+                    this._addTimeout(150, () => this._dismiss(notification));
+                } else {
+                    card.ease({
+                        translation_x: 0,
+                        opacity: 255,
+                        duration: 160,
+                        mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                        onComplete: () => {
+                            card._tahoeSuppressClick = false;
+                        },
+                    });
+                }
+            },
         });
-
-        gesture.connect('pan-update', () => {
-            const deltaX = panDeltaX(gesture);
-            card.translation_x = deltaX;
-            card.opacity = Math.max(100, 255 - Math.round(Math.abs(deltaX) / 2));
-        });
-
-        gesture.connect('end', () => {
-            const deltaX = panDeltaX(gesture);
-            const width = card.width || px(PANEL_WIDTH);
-            const threshold = Math.max(px(SWIPE_MIN), width * SWIPE_RATIO);
-            if (Math.abs(deltaX) >= threshold) {
-                const direction = Math.sign(deltaX) || 1;
-                card.reactive = false;
-                card.ease({
-                    translation_x: direction * (width + px(24)),
-                    opacity: 0,
-                    duration: 150,
-                    mode: Clutter.AnimationMode.EASE_IN_QUAD,
-                });
-                this._addTimeout(150, () => this._dismiss(notification));
-            } else {
-                card.ease({
-                    translation_x: 0,
-                    opacity: 255,
-                    duration: 160,
-                    mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                    onComplete: () => {
-                        card._tahoeSuppressClick = false;
-                    },
-                });
-            }
-        });
-
-        card.add_action(gesture);
     }
 
     _expandSource(source) {
