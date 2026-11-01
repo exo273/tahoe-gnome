@@ -91,12 +91,14 @@
 
 .tahoe-cc-menu {
     -arrow-base: 0;
-    -arrow-rise: 6px;
+    /* El BoxPointer usa -arrow-rise como margen contra el borde de la
+       pantalla: 8px a la derecha, como el panel de Tahoe. */
+    -arrow-rise: 8px;
     -arrow-border-width: 0;
     -arrow-border-radius: 0;
     -arrow-background-color: transparent;
     -arrow-box-shadow: none;
-    -boxpointer-gap: 8px;
+    -boxpointer-gap: 0;
     background-color: transparent !important;
     background-image: none !important;
     border: none !important;
@@ -105,7 +107,8 @@
 }
 
 .popup-menu.panel-menu.tahoe-cc-menu {
-    -boxpointer-gap: 8px;
+    -boxpointer-gap: 0;
+    -arrow-rise: 8px;
     margin: 0;
 }
 
@@ -145,7 +148,13 @@
 
 .tahoe-cc-grid {
     width: 284px;
-    spacing: 12px;
+    /* La colocación la hace TahoeGridLayout (62px + 12px de hueco). */
+    spacing: 0;
+}
+
+.tahoe-cc-empty-layout {
+    width: 284px;
+    padding: 18px 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -253,10 +262,10 @@
    -------------------------------------------------------------------------- */
 
 .tahoe-cc-pill {
-    width: 114px;
-    height: 48px;
-    border-radius: 999px;
-    padding: 6px 10px;
+    width: 136px;
+    height: 62px;
+    border-radius: 31px;
+    padding: 10px 12px;
     spacing: 8px;
 }
 
@@ -279,9 +288,9 @@
 }
 
 .tahoe-cc-pill-focus {
-    width: 120px;
-    padding-left: 7px;
-    padding-right: 7px;
+    width: 136px;
+    padding-left: 10px;
+    padding-right: 10px;
     spacing: 6px;
 }
 
@@ -294,7 +303,36 @@
     height: 32px;
     min-width: 32px;
     min-height: 32px;
-    border-radius: 17px;
+    border-radius: 16px;
+}
+
+/* Chevron para abrir el menú de un control externo (QuickMenuToggle). */
+.tahoe-cc-pill-chevron {
+    width: 18px;
+    height: 24px;
+    min-width: 18px;
+    min-height: 24px;
+    border-radius: 9px;
+    padding: 0;
+    margin: 0;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    color: inherit;
+    opacity: 0.65;
+}
+
+.tahoe-cc-pill-chevron:hover {
+    background-color: rgba(0, 0, 0, 0.10);
+    opacity: 1;
+}
+
+.tahoe-theme-dark .tahoe-cc-pill-chevron:hover {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.tahoe-cc-pill-ext {
+    spacing: 4px;
 }
 
 /* --------------------------------------------------------------------------
@@ -314,10 +352,10 @@
 }
 
 .tahoe-cc-circle-62 {
-    width: 60px;
-    height: 60px;
-    min-width: 60px;
-    min-height: 60px;
+    width: 62px;
+    height: 62px;
+    min-width: 62px;
+    min-height: 62px;
     border-radius: 31px;
 }
 
@@ -442,21 +480,13 @@
    -------------------------------------------------------------------------- */
 
 .tahoe-cc-media {
-    width: 114px;
-    height: 114px;
-    border-radius: 26px;
-    padding: 10px;
+    width: 136px;
+    height: 136px;
+    border-radius: 24px;
+    padding: 10px 12px;
 }
 
 .tahoe-cc-media-content {
-    spacing: 4px;
-}
-
-.tahoe-cc-media-top {
-    spacing: 8px;
-}
-
-.tahoe-cc-media-labels {
     spacing: 0;
 }
 
@@ -464,6 +494,7 @@
     font-size: 13px;
     font-weight: 600;
     color: #1d1d1f;
+    margin-top: 6px;
 }
 
 .tahoe-cc-media-artist {
@@ -473,7 +504,7 @@
 }
 
 .tahoe-cc-media-art {
-    border-radius: 8px;
+    border-radius: 10px;
     background-color: rgba(0, 0, 0, 0.08);
     background-size: cover;
 }
@@ -491,16 +522,16 @@
 }
 
 .tahoe-cc-media-controls {
-    spacing: 4px;
+    spacing: 8px;
     margin-top: 2px;
 }
 
 .tahoe-cc-media-button {
     width: 32px;
-    height: 26px;
+    height: 30px;
     min-width: 32px;
-    min-height: 26px;
-    border-radius: 8px;
+    min-height: 30px;
+    border-radius: 9px;
     background-color: transparent;
     border: none;
     box-shadow: none;
@@ -543,15 +574,15 @@
    -------------------------------------------------------------------------- */
 
 .tahoe-cc-wide {
-    width: 258px;
-    height: 44px;
+    width: 284px;
+    height: 62px;
     border-radius: 24px;
-    padding: 8px 12px;
-    spacing: 3px;
+    padding: 8px 14px;
+    spacing: 2px;
 }
 
 .tahoe-cc-wide-row {
-    spacing: 7px;
+    spacing: 8px;
 }
 
 .tahoe-cc-slider-end {
@@ -985,6 +1016,43 @@
 .tahoe-cc-sheet-battery .tahoe-cc-list-row-large {
     padding-left: 14px;
     padding-right: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   Batería en círculo y menús externos
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-battery-circle-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .tahoe-cc-battery-circle-label {
+    color: #ffffff;
+}
+
+.tahoe-cc-glass.tahoe-cc-on .tahoe-cc-battery-circle-label {
+    color: inherit;
+}
+
+.tahoe-cc-sheet-external {
+    width: 282px;
+}
+
+.tahoe-cc-external-menu {
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.tahoe-cc-sheet-external .popup-menu-item {
+    border-radius: 8px;
+    margin: 1px 8px;
+    padding: 6px 10px;
 }
 
 /* --------------------------------------------------------------------------

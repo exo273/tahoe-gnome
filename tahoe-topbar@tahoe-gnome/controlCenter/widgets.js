@@ -10,6 +10,7 @@
 'use strict';
 
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
@@ -303,6 +304,7 @@ class CircleButton extends St.Button {
             size = 62,
             styleClass = null,
             glass = true,
+            child = null,
         } = params;
 
         super._init({
@@ -329,12 +331,25 @@ class CircleButton extends St.Button {
             icon_size: iconSize,
             style_class: ICON_STYLE,
         });
-        this.set_child(this._icon);
+        this.set_child(child ?? this._icon);
     }
 
     setIcon(iconName) {
-        if (iconName && this._icon)
-            this._icon.icon_name = iconName;
+        if (!this._icon)
+            return;
+        this._icon.gicon = null;
+        this._icon.icon_name = iconName ?? null;
+    }
+
+    setGicon(gicon, iconName = null) {
+        if (!this._icon)
+            return;
+        if (gicon) {
+            this._icon.icon_name = null;
+            this._icon.gicon = gicon;
+        } else if (iconName !== null) {
+            this.setIcon(iconName);
+        }
     }
 
     setOn(on) {
@@ -446,65 +461,66 @@ export function createPill(options) {
     };
 }
 
+function escapeCssUrl(url) {
+    return String(url).replace(/(["\\])/g, '\\$1').replace(/\n/g, '');
+}
+
+export function parseArtwork(artUrl) {
+    if (!artUrl)
+        return '';
+
+    if (artUrl.startsWith('file://') || artUrl.startsWith('http://') ||
+        artUrl.startsWith('https://'))
+        return artUrl;
+
+    return '';
+}
+
 /**
- * Tarjeta de reproducción 2x2 (136x136). Si no hay reproductor mantiene el
- * mismo tamaño y muestra "Sin reproducción".
+ * Tarjeta de reproducción 2x2 (136x136, radio 24), como la de Tahoe:
+ * carátula de 44 px arriba a la izquierda, título y artista a ancho completo
+ * debajo y una fila de transporte centrada al pie. Sin reproductor muestra
+ * un icono de nota y "Sin reproducción" en el mismo espacio.
  */
 export function createMediaCard() {
     const card = new St.BoxLayout({
         style_class: 'tahoe-cc-glass tahoe-cc-media',
         orientation: Clutter.Orientation.VERTICAL,
-        y_align: Clutter.ActorAlign.CENTER,
-        x_align: Clutter.ActorAlign.FILL,
     });
 
     const art = new St.Bin({
         style_class: 'tahoe-cc-media-art',
-        width: 40,
-        height: 40,
-        y_align: Clutter.ActorAlign.CENTER,
+        width: 44,
+        height: 44,
         x_align: Clutter.ActorAlign.START,
+        y_align: Clutter.ActorAlign.START,
     });
     const artIcon = new St.Icon({
         icon_name: 'audio-x-generic-symbolic',
-        icon_size: 17,
+        icon_size: 20,
         style_class: 'tahoe-cc-media-art-icon',
         x_align: Clutter.ActorAlign.CENTER,
         y_align: Clutter.ActorAlign.CENTER,
     });
     art.set_child(artIcon);
 
-    const top = new St.BoxLayout({
-        style_class: 'tahoe-cc-media-top',
-        x_expand: true,
-        y_align: Clutter.ActorAlign.CENTER,
-    });
-    top.add_child(art);
-
-    const labels = new St.BoxLayout({
-        orientation: Clutter.Orientation.VERTICAL,
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-        y_align: Clutter.ActorAlign.CENTER,
-        style_class: 'tahoe-cc-media-labels',
-    });
     const title = new St.Label({
         text: '',
         style_class: 'tahoe-cc-media-title',
         x_expand: true,
-        x_align: Clutter.ActorAlign.START,
+        x_align: Clutter.ActorAlign.FILL,
     });
     title.clutter_text.set_ellipsize(Pango.EllipsizeMode.END);
+    title.clutter_text.set_single_line_mode(true);
+
     const artist = new St.Label({
         text: '',
         style_class: 'tahoe-cc-media-artist',
         x_expand: true,
-        x_align: Clutter.ActorAlign.START,
+        x_align: Clutter.ActorAlign.FILL,
     });
     artist.clutter_text.set_ellipsize(Pango.EllipsizeMode.END);
-    labels.add_child(title);
-    labels.add_child(artist);
-    top.add_child(labels);
+    artist.clutter_text.set_single_line_mode(true);
 
     const controls = new St.BoxLayout({
         style_class: 'tahoe-cc-media-controls',
@@ -521,19 +537,19 @@ export function createMediaCard() {
         accessible_name: 'Anterior',
         child: new St.Icon({
             icon_name: 'media-skip-backward-symbolic',
-            icon_size: 20,
+            icon_size: 22,
             style_class: ICON_STYLE,
         }),
     });
     const play = new St.Button({
-        style_class: 'tahoe-cc-media-button',
+        style_class: 'tahoe-cc-media-button tahoe-cc-media-play',
         can_focus: true,
         reactive: true,
         track_hover: true,
         accessible_name: 'Reproducir o pausar',
         child: new St.Icon({
             icon_name: 'media-playback-start-symbolic',
-            icon_size: 20,
+            icon_size: 26,
             style_class: ICON_STYLE,
         }),
     });
@@ -545,7 +561,7 @@ export function createMediaCard() {
         accessible_name: 'Siguiente',
         child: new St.Icon({
             icon_name: 'media-skip-forward-symbolic',
-            icon_size: 20,
+            icon_size: 22,
             style_class: ICON_STYLE,
         }),
     });
@@ -553,6 +569,18 @@ export function createMediaCard() {
     controls.add_child(previous);
     controls.add_child(play);
     controls.add_child(next);
+
+    const content = new St.BoxLayout({
+        style_class: 'tahoe-cc-media-content',
+        orientation: Clutter.Orientation.VERTICAL,
+        x_expand: true,
+        y_expand: true,
+    });
+    content.add_child(art);
+    content.add_child(title);
+    content.add_child(artist);
+    content.add_child(new St.Widget({y_expand: true}));
+    content.add_child(controls);
 
     const empty = new St.BoxLayout({
         style_class: 'tahoe-cc-media-empty',
@@ -574,17 +602,8 @@ export function createMediaCard() {
         x_align: Clutter.ActorAlign.CENTER,
     }));
 
-    const content = new St.BoxLayout({
-        style_class: 'tahoe-cc-media-content',
-        orientation: Clutter.Orientation.VERTICAL,
-        x_expand: true,
-        y_expand: true,
-    });
-    content.add_child(top);
-    content.add_child(controls);
     card.add_child(content);
     card.add_child(empty);
-
 
     return {
         card,
@@ -598,6 +617,7 @@ export function createMediaCard() {
         content,
         empty,
         _playing: null,
+        _artUrl: null,
         setPlaying(playing) {
             if (this._playing === playing)
                 return;
@@ -606,13 +626,30 @@ export function createMediaCard() {
                 icon_name: playing
                     ? 'media-playback-pause-symbolic'
                     : 'media-playback-start-symbolic',
-                icon_size: 20,
+                icon_size: 26,
                 style_class: ICON_STYLE,
             }));
         },
         setEmpty(isEmpty) {
             content.visible = !isEmpty;
             empty.visible = isEmpty;
+        },
+        setArtUrl(artUrl) {
+            if (this._artUrl === artUrl)
+                return;
+            this._artUrl = artUrl;
+
+            const url = parseArtwork(artUrl);
+            if (!url) {
+                art.set_style(null);
+                art.remove_style_class_name('tahoe-cc-media-art-image');
+                artIcon.visible = true;
+                return;
+            }
+
+            art.set_style(`background-image: url("${escapeCssUrl(url)}");`);
+            art.add_style_class_name('tahoe-cc-media-art-image');
+            artIcon.visible = false;
         },
     };
 }
@@ -1181,3 +1218,71 @@ export function createControlCenterGlyph() {
 }
 
 export {ICON_STYLE};
+
+/**
+ * Clic secundario (botón derecho) y pulsación larga para abrir la vista de
+ * detalle de un módulo compacto. Devuelve una función para desconectarlo.
+ */
+export function attachSecondaryClick(actor, callback) {
+    if (!actor || typeof callback !== 'function')
+        return () => {};
+
+    let longPressId = 0;
+    let triggered = false;
+    let gone = false;
+
+    const clearLongPress = () => {
+        if (longPressId) {
+            GLib.source_remove(longPressId);
+            longPressId = 0;
+        }
+    };
+
+    const pressId = actor.connect('button-press-event', (target, event) => {
+        if (event.get_button() === 3) {
+            clearLongPress();
+            callback();
+            return Clutter.EVENT_STOP;
+        }
+
+        if (event.get_button() === 1) {
+            triggered = false;
+            clearLongPress();
+            longPressId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
+                longPressId = 0;
+                if (gone)
+                    return GLib.SOURCE_REMOVE;
+                triggered = true;
+                callback();
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+    });
+
+    const releaseId = actor.connect('button-release-event', () => {
+        clearLongPress();
+        if (!triggered)
+            return Clutter.EVENT_PROPAGATE;
+        triggered = false;
+        return Clutter.EVENT_STOP;
+    });
+
+    const destroyId = actor.connect('destroy', () => {
+        gone = true;
+        clearLongPress();
+    });
+
+    return () => {
+        gone = true;
+        clearLongPress();
+        try {
+            actor.disconnect(pressId);
+            actor.disconnect(releaseId);
+            actor.disconnect(destroyId);
+        } catch (_e) {
+            // El actor ya no existe.
+        }
+    };
+}

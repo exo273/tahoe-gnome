@@ -135,6 +135,16 @@
       <default>true</default>
       <summary>Mostrar el indicador de sonido en la barra</summary>
     </key>
+    <key name="control-center-layout" type="s">
+      <default>'[{"id":"wifi","size":"medium"},{"id":"now-playing","size":"large"},{"id":"bluetooth","size":"small"},{"id":"airplane","size":"small"},{"id":"focus","size":"medium"},{"id":"dark-mode","size":"small"},{"id":"night-light","size":"small"},{"id":"display","size":"wide"},{"id":"sound","size":"wide"},{"id":"power-profile","size":"small"},{"id":"screenshot","size":"small"},{"id":"lock","size":"small"},{"id":"settings","size":"small"}]'</default>
+      <summary>Distribución del Centro de control</summary>
+      <description>Lista JSON ordenada de {"id": control, "size": small|medium|large|wide}. La rejilla tiene 4 columnas y coloca los controles con first fit.</description>
+    </key>
+    <key name="control-center-known-externals" type="as">
+      <default>[]</default>
+      <summary>Controles externos ya descubiertos</summary>
+      <description>Ids de QuickToggle/QuickMenuToggle/QuickSlider de otras extensiones que ya se añadieron automáticamente al layout. Evita volver a añadirlos si el usuario los quita.</description>
+    </key>
     <!-- ===== Reloj ===== -->
     <key name="move-clock-right" type="b">
       <default>true</default>

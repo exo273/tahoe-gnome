@@ -28,9 +28,6 @@ import {glassLook, stageRect} from '../liquidGlass.js';
 import {
     BatteryIcon,
     CircleButton,
-    createPill,
-    createMediaCard,
-    createWideCard,
     createFooterPill,
     createDetailHeader,
     createSectionHeader,
@@ -38,6 +35,14 @@ import {
     createControlCenterGlyph,
     TahoeSlider,
 } from './widgets.js';
+import {ControlRegistry} from './registry.js';
+import {
+    cloneLayout,
+    layoutToJSON,
+    parseLayout,
+    sizeSpan,
+    TahoeGridLayout,
+} from './layout.js';
 
 import {NetworkController} from './network.js';
 import {BluetoothController} from './bluetooth.js';
@@ -67,21 +72,6 @@ function scaleFactor() {
 
 function px(value) {
     return Math.max(1, Math.round(value * scaleFactor()));
-}
-
-function escapeCssUrl(url) {
-    return String(url).replace(/(["\\])/g, '\\$1').replace(/\n/g, '');
-}
-
-function parseArtwork(artUrl) {
-    if (!artUrl)
-        return '';
-
-    if (artUrl.startsWith('file://') || artUrl.startsWith('http://') ||
-        artUrl.startsWith('https://'))
-        return artUrl;
-
-    return '';
 }
 
 function openSettingsPanel(panel) {
@@ -184,6 +174,9 @@ export class TahoeControlCenter {
         this._qsWatchedChildren = new Set();
         this._qsWasVisible = true;
         this._qsTempVisible = false;
+        this._qsPanelGone = false;
+        this._qsContainerGone = false;
+        this._panelButtonsGone = false;
         this._qsRestoring = false;
         this._qsScanIdleId = 0;
         this._brightnessAnchor = null;
@@ -227,6 +220,17 @@ export class TahoeControlCenter {
         this._syncTimeoutId = 0;
         this._showSoundIcon = true;
 
+        this._registry = null;
+        this._externalEntries = [];
+        this._externalSyncId = 0;
+        this._layout = null;
+        this._layoutApplying = false;
+        this._availabilityKey = '';
+        this._editMode = false;
+        this._rendering = false;
+        this._keyboardBacklight = null;
+        this._externalMenuHome = null;
+
         this._loadStylesheet();
         this._loadSettings();
         this._bindTheme();
@@ -236,10 +240,17 @@ export class TahoeControlCenter {
             engine => this._setGlassEngine(engine)) ?? null;
 
         this._createControllers();
+        try {
+            this._registry = new ControlRegistry(this);
+        } catch (e) {
+            console.error(`${LOG} No se pudo crear el registro de controles:`, e);
+            this._registry = null;
+        }
         this._bindControllers();
         this._setupVolume();
 
         this._createPanelButtons();
+        this._watchPanelLifetimes();
         this._hideQuickSettingsIndicators();
         this._overrideQuickSettingsShortcut();
         this._connectDesktopSignals();
@@ -323,6 +334,7 @@ export class TahoeControlCenter {
                 'control-center-show-battery-percent',
                 'control-center-show-now-playing',
                 'control-center-show-sound-icon',
+                'control-center-layout',
                 'glass-style',
             ]) {
                 this._connect(this._settings, `changed::${key}`,
@@ -458,10 +470,16 @@ export class TahoeControlCenter {
     }
 
     _repaintDrawings() {
+        for (const item of this._mainRefs?.controls ?? []) {
+            try {
+                item.built?.repaint?.();
+            } catch (_e) {
+                // Actor ya destruido.
+            }
+        }
+
         for (const actor of [
             this._batteryIcon,
-            this._mainRefs?.brightnessSlider,
-            this._mainRefs?.soundSlider,
             this._detailRefs?.slider,
             this._soundPopoverRefs?.slider,
         ]) {
@@ -490,6 +508,9 @@ export class TahoeControlCenter {
             this._showSoundIcon = this._getBoolean(
                 'control-center-show-sound-icon', true);
             this._updatePanelButtons();
+            break;
+        case 'control-center-layout':
+            this._onLayoutChanged();
             break;
         default:
             this._queueSync();
@@ -790,6 +811,43 @@ export class TahoeControlCenter {
         this._createControlCenterButton();
     }
 
+    /**
+     * El shell puede destruir el panel (o sus hijos) antes que la extensión,
+     * p. ej. al apagar la sesión. Se anulan las referencias en el mismo
+     * instante para que los idles de sincronización no toquen actores
+     * disposed.
+     */
+    _watchPanelLifetimes() {
+        const watch = (actor, key) => {
+            if (!actor)
+                return;
+            actor.connect('destroy', () => {
+                if (this[key] === actor)
+                    this[key] = null;
+            });
+        };
+
+        watch(this._batteryButton, '_batteryButton');
+        watch(this._batteryLabel, '_batteryLabel');
+        watch(this._batteryIcon, '_batteryIcon');
+        watch(this._batteryPopoverBox, '_batteryPopoverBox');
+        watch(this._soundButton, '_soundButton');
+        watch(this._soundPanelIcon, '_soundPanelIcon');
+        watch(this._soundPopoverBox, '_soundPopoverBox');
+        watch(this._wifiButton, '_wifiButton');
+        watch(this._wifiPanelIcon, '_wifiPanelIcon');
+        watch(this._wifiPopoverBox, '_wifiPopoverBox');
+        watch(this._ccButton, '_ccButton');
+        watch(this._ccRoot, '_ccRoot');
+
+        for (const button of [this._batteryButton, this._soundButton,
+            this._wifiButton, this._ccButton]) {
+            button?.connect('destroy', () => {
+                this._panelButtonsGone = true;
+            });
+        }
+    }
+
     _setButtonOpen(button, open) {
         if (!button)
             return;
@@ -1054,7 +1112,17 @@ export class TahoeControlCenter {
 
         this._qs = qs;
         this._qsIndicators = qs._indicators;
+        this._qsPanelGone = false;
+        this._qsContainerGone = false;
         this._qsWasVisible = qs.container?.visible ?? true;
+
+        this._qsIndicators.connect('destroy', () => {
+            this._qsIndicators = null;
+            this._qsPanelGone = true;
+        });
+        qs.container?.connect('destroy', () => {
+            this._qsContainerGone = true;
+        });
 
         // Si el ancla de brillo no está disponible (por ejemplo, porque el
         // escaneo diferido aún no ha corrido), desviamos la inserción de
@@ -1099,6 +1167,18 @@ export class TahoeControlCenter {
             this._syncQuickSettingsVisibility();
         });
 
+        const grid = this._quickSettingsGrid();
+        if (grid) {
+            this._connect(grid, 'child-added', () => {
+                if (!this._qsRestoring)
+                    this._queueExternalRefresh();
+            });
+            this._connect(grid, 'child-removed', () => {
+                if (!this._qsRestoring)
+                    this._queueExternalRefresh();
+            });
+        }
+
         this._connect(qs.menu, 'open-state-changed', (_menu, open) => {
             if (!open) {
                 this._qsTempVisible = false;
@@ -1115,14 +1195,14 @@ export class TahoeControlCenter {
 
         this._qsScanIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
             this._qsScanIdleId = 0;
-            if (!this._qsRestoring)
+            if (!this._qsRestoring && !this._qsPanelGone && !this._destroyed)
                 this._scanQuickSettingsIndicators();
             return GLib.SOURCE_REMOVE;
         });
     }
 
     _scanQuickSettingsIndicators() {
-        if (!this._qsIndicators)
+        if (!this._qsIndicators || this._qsPanelGone || this._destroyed)
             return;
 
         for (const child of [...this._qsIndicators.get_children()]) {
@@ -1196,6 +1276,8 @@ export class TahoeControlCenter {
     _syncQuickSettingsVisibility() {
         if (this._destroyed || !this._qs?.container || !this._qsIndicators)
             return;
+        if (this._qsPanelGone || this._qsContainerGone)
+            return;
 
         if (Main.sessionMode?.currentMode !== 'user')
             return;
@@ -1236,6 +1318,16 @@ export class TahoeControlCenter {
     }
 
     _restoreQuickSettingsIndicators() {
+        if (this._qsPanelGone) {
+            this._qsDetached = [];
+            this._qsDetachedSet.clear();
+            this._qsIndicators = null;
+            this._brightnessAnchor = null;
+            this._brightnessIndicator = null;
+            this._qsRestoring = false;
+            return;
+        }
+
         const indicators = this._qsIndicators;
 
         this._qsRestoring = true;
@@ -1374,6 +1466,9 @@ export class TahoeControlCenter {
         }
 
         this._connect(Main.sessionMode, 'updated', () => {
+            if (this._destroyed || this._panelButtonsGone)
+                return;
+
             if (Main.sessionMode.currentMode === 'user') {
                 this._syncQuickSettingsVisibility();
                 this._reorderPanelButtons();
@@ -1383,6 +1478,9 @@ export class TahoeControlCenter {
     }
 
     _reorderPanelButtons() {
+        if (this._panelButtonsGone || this._destroyed)
+            return;
+
         const rightBox = this._panel?._rightBox;
         const clock = this._panel?.statusArea?.dateMenu?.container;
         if (!rightBox || !clock || clock.get_parent() !== rightBox)
@@ -1421,9 +1519,16 @@ export class TahoeControlCenter {
     }
 
     _clearView() {
+        this._restoreExternalMenu();
         this._mainRefs = null;
         this._detailRefs = null;
-        this._destroyAllGlassHandles();
+        // Los popovers de la barra tienen su propio ciclo de vida: cerrar el
+        // panel principal no debe arrancarles el cristal (puede ocurrir al
+        // abrir un popover y cerrarse el otro menú a la vez).
+        this._destroyMainGlassHandles();
+        for (const handle of [...this._sheetHandles])
+            handle.destroy();
+        this._sheetHandles.clear();
         this._clearChildren(this._ccRoot);
         this._view = 'main';
     }
@@ -1529,266 +1634,141 @@ export class TahoeControlCenter {
                 owner,
             }));
 
+        // El shader admite 16 regiones por superficie. Un layout grande puede
+        // superarlo, así que se reparte en varias superficies del mismo radio.
+        const makeChunks = (actors, radius, owner) => {
+            const list = [...actors];
+            const handles = [];
+            for (let i = 0; i < list.length; i += 16) {
+                const chunk = list.slice(i, i + 16);
+                handles.push(make(chunk, radius, owner));
+            }
+            return handles;
+        };
+
         this._mainGlassHandles = [
-            make(this._roundActors, 31, 'cc-round'),
-            make(this._cardActors, 24, 'cc-card'),
-            make(this._footerActors, 13, 'cc-footer'),
+            ...makeChunks(this._roundActors, 31, 'cc-round'),
+            ...makeChunks(this._cardActors, 24, 'cc-card'),
+            ...makeChunks(this._footerActors, 13, 'cc-footer'),
         ];
     }
 
     _renderMain() {
-        if (!this._ccRoot)
+        if (!this._ccRoot || this._rendering)
             return;
 
-        this._destroyMainGlassHandles();
-        this._clearChildren(this._ccRoot);
-        this._mainRefs = {};
-        this._detailRefs = null;
-        this._view = 'main';
+        this._rendering = true;
+        try {
+            this._destroyMainGlassHandles();
+            this._restoreExternalMenu();
+            this._clearChildren(this._ccRoot);
+            this._mainRefs = {};
+            this._detailRefs = null;
+            this._view = 'main';
 
-        const grid = new St.Widget({
-            style_class: 'tahoe-cc-grid',
-            layout_manager: new Clutter.GridLayout(),
-            x_expand: true,
-            x_align: Clutter.ActorAlign.START,
-        });
-        const layout = grid.layout_manager;
-        layout.column_spacing = px(12);
-        layout.row_spacing = px(12);
+            // Los controles externos se descubren antes de leer el layout:
+            // la primera vez que aparece uno se añade al final como "small".
+            const externals = this._refreshExternalRegistry();
+            this._autoAddExternals(externals);
 
-        this._ccRoot.add_child(grid);
+            const layout = this.getLayout();
+            const grid = new St.Widget({
+                style_class: 'tahoe-cc-grid',
+                layout_manager: new TahoeGridLayout(),
+                x_expand: true,
+                x_align: Clutter.ActorAlign.START,
+            });
 
-        // Fila 1: Wi-Fi (2 columnas) + Reproduciendo (2x2)
-        const wifi = createPill({
-            iconName: 'network-wireless-signal-none-symbolic',
-            title: 'Wi‑Fi',
-            subtitle: 'Desactivado',
-            onIconClick: () => this._network?.toggleWifi(),
-            onTextClick: () => this._showDetail('wifi'),
-            accessibleName: 'Wi‑Fi',
-        });
-        this._addGlass(wifi.pill, 31);
-        layout.attach(wifi.pill, 0, 0, 2, 1);
+            this._ccRoot.add_child(grid);
 
-        const media = createMediaCard();
-        this._addGlass(media.card, 26);
-        layout.attach(media.card, 2, 0, 2, 2);
-        media.previous.connect('clicked', () => this._media?.previous());
-        media.play.connect('clicked', () => this._media?.playPause());
-        media.next.connect('clicked', () => this._media?.next());
+            const placed = [];
+            const seen = new Set();
 
-        // Fila 2: Bluetooth + Modo avión
-        const bluetooth = this._createBluetoothCircle();
-        layout.attach(bluetooth, 0, 1, 1, 1);
+            for (const entry of layout) {
+                if (!entry?.id || seen.has(entry.id))
+                    continue;
+                seen.add(entry.id);
 
-        const airplane = new CircleButton({
-            iconName: 'airplane-mode-symbolic',
-            iconSize: 22,
-            accessibleName: 'Modo avión',
-            size: 62,
-        });
-        this._addGlass(airplane, 31);
-        airplane.connect('clicked', () => {
-            if (this._rfkill)
-                this._rfkill.airplane_mode = !this._rfkill.airplane_mode;
-        });
-        layout.attach(airplane, 1, 1, 1, 1);
+                const control = this._registry?.get(entry.id);
+                if (!control)
+                    continue;
 
-        // Fila 3: Concentración + Modo oscuro + Luz nocturna
-        const focus = createPill({
-            iconName: 'weather-clear-night-symbolic',
-            title: 'Concentración',
-            subtitle: 'Desactivado',
-            onIconClick: () => this._toggleDoNotDisturb(),
-            onTextClick: () => this._toggleDoNotDisturb(),
-            accessibleName: 'Concentración',
-        });
-        focus.pill.add_style_class_name('tahoe-cc-pill-focus');
-        focus.titleLabel.clutter_text.set_ellipsize(Pango.EllipsizeMode.NONE);
-        this._addGlass(focus.pill, 31);
-        layout.attach(focus.pill, 0, 2, 2, 1);
+                let available = false;
+                try {
+                    available = Boolean(control.available());
+                } catch (e) {
+                    console.error(`${LOG} available() falló para «${entry.id}»:`, e);
+                    available = false;
+                }
+                if (!available)
+                    continue;
 
-        const dark = new CircleButton({
-            iconName: 'dark-mode-symbolic',
-            iconSize: 22,
-            accessibleName: 'Modo oscuro',
-            size: 62,
-        });
-        this._addGlass(dark, 31);
-        dark.connect('clicked', () => this._toggleDarkMode());
-        layout.attach(dark, 2, 2, 1, 1);
+                let size = control.sizes.includes(entry.size)
+                    ? entry.size
+                    : control.defaultSize;
+                if (!control.sizes.includes(size))
+                    size = control.sizes[0];
 
-        const night = new CircleButton({
-            iconName: 'night-light-symbolic',
-            iconSize: 22,
-            accessibleName: 'Luz nocturna',
-            size: 62,
-        });
-        this._addGlass(night, 31);
-        night.connect('clicked', () => this._toggleNightLight());
-        layout.attach(night, 3, 2, 1, 1);
+                let built = null;
+                try {
+                    built = control.create(size);
+                } catch (e) {
+                    console.error(`${LOG} No se pudo crear «${entry.id}» (${size}):`, e);
+                    built = null;
+                }
+                if (!built?.actor)
+                    continue;
 
-        let row = 3;
+                const span = sizeSpan(size);
+                grid.add_child(built.actor);
+                grid.layout_manager.setSpan(grid, built.actor,
+                    span.columns, span.rows);
+                this._addGlass(built.actor, built.radius ?? span.radius);
 
-        // Fila 4: Pantalla (ancha)
-        const brightness = createWideCard({
-            title: 'Pantalla',
-            leftIcon: 'display-brightness-symbolic',
-            rightIcon: 'display-brightness-symbolic',
-            leftIconSize: 13,
-            rightIconSize: 18,
-            accessibleName: 'Brillo de la pantalla',
-        });
-        this._addGlass(brightness.card, 24);
-        brightness.slider.connect('notify::value', () => {
-            if (this._updatingBrightnessSlider)
-                return;
-            const scale = Main.brightnessManager?.globalScale;
-            if (scale)
-                scale.value = brightness.slider.value;
-        });
-        layout.attach(brightness.card, 0, row++, 4, 1);
+                placed.push({control, size, built});
+            }
 
-        // Fila 5: Sonido (ancha)
-        const sound = createWideCard({
-            title: 'Sonido',
-            leftIcon: 'audio-volume-low-symbolic',
-            rightIcon: 'audio-volume-high-symbolic',
-            leftIconSize: 13,
-            rightIconSize: 17,
-            withOutputButton: true,
-            accessibleName: 'Volumen',
-        });
-        this._addGlass(sound.card, 24);
-        sound.slider.connect('notify::value', () => {
-            if (this._updatingVolumeSlider)
-                return;
-            this._setVolumeFromSlider(sound.slider.value);
-        });
-        if (sound.output)
-            sound.output.connect('clicked', () => this._showDetail('sound'));
-        layout.attach(sound.card, 0, row++, 4, 1);
+            if (placed.length === 0) {
+                const empty = new St.BoxLayout({
+                    style_class: 'tahoe-cc-empty-layout',
+                    x_expand: true,
+                    x_align: Clutter.ActorAlign.CENTER,
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+                empty.add_child(new St.Label({
+                    text: 'No hay controles disponibles',
+                    style_class: 'tahoe-cc-empty-label',
+                    x_align: Clutter.ActorAlign.CENTER,
+                }));
+                this._ccRoot.add_child(empty);
+            }
 
-        // Fila 6: acciones circulares
-        const power = new CircleButton({
-            iconName: 'power-profile-balanced-symbolic',
-            iconSize: 22,
-            accessibleName: 'Perfil de energía',
-            size: 62,
-        });
-        this._addGlass(power, 31);
-        power.connect('clicked', () => this._powerProfiles?.cycleProfile());
+            const footer = createFooterPill('Más ajustes de GNOME…',
+                () => this._showGnomeQuickSettings());
+            this._addGlass(footer, 15);
+            this._ccRoot.add_child(footer);
 
-        const screenshot = new CircleButton({
-            iconName: 'screenshooter-symbolic',
-            iconSize: 22,
-            accessibleName: 'Captura de pantalla',
-            size: 62,
-        });
-        this._addGlass(screenshot, 31);
-        screenshot.connect('clicked', () => this._takeScreenshot());
-
-        const lock = new CircleButton({
-            iconName: 'system-lock-screen-symbolic',
-            iconSize: 22,
-            accessibleName: 'Bloquear',
-            size: 62,
-        });
-        this._addGlass(lock, 31);
-        lock.connect('clicked', () => this._lockScreen());
-
-        const settings = new CircleButton({
-            iconName: 'preferences-system-symbolic',
-            iconSize: 22,
-            accessibleName: 'Ajustes',
-            size: 62,
-        });
-        this._addGlass(settings, 31);
-        settings.connect('clicked', () => this._openSettings());
-
-        layout.attach(power, 0, row, 1, 1);
-        layout.attach(screenshot, 1, row, 1, 1);
-        layout.attach(lock, 2, row, 1, 1);
-        layout.attach(settings, 3, row, 1, 1);
-
-        const footer = createFooterPill('Más ajustes de GNOME…',
-            () => this._showGnomeQuickSettings());
-        this._addGlass(footer, 15);
-        this._ccRoot.add_child(footer);
-
-        this._mainRefs = {
-            wifi, media, bluetooth, airplane, focus, dark, night,
-            brightness: brightness.card,
-            brightnessSlider: brightness.slider,
-            brightnessLeft: brightness.left,
-            brightnessRight: brightness.right,
-            sound: sound.card,
-            soundSlider: sound.slider,
-            soundLeft: sound.left,
-            soundRight: sound.right,
-            soundOutput: sound.output,
-            power, screenshot, lock, settings,
-            footer,
-            _mediaPlaying: null,
-            _mediaArtUrl: null,
-        };
-
-        this._syncMainView();
-        this._animateIn(grid);
-        this._syncMainGlassHandles(grid);
+            this._mainRefs = {grid, controls: placed, footer};
+            this._availabilityKey = this._availabilityKeyForLayout();
+            this._syncMainView();
+            this._animateIn(grid);
+            this._syncMainGlassHandles(grid);
+        } finally {
+            this._rendering = false;
+        }
     }
 
-    _createBluetoothCircle() {
-        const circle = new CircleButton({
-            iconName: 'bluetooth-disabled-symbolic',
-            iconSize: 22,
-            accessibleName: 'Bluetooth',
-            size: 62,
-        });
-        this._addGlass(circle, 31);
-
-        let longPressId = 0;
-        let longPressTriggered = false;
-
-        circle.connect('button-press-event', (actor, event) => {
-            if (event.get_button() === 3) {
-                this._showDetail('bluetooth');
-                return Clutter.EVENT_STOP;
+    _availabilityKeyForLayout() {
+        return this.getLayout().map(entry => {
+            const control = this._registry?.get(entry.id);
+            let available = false;
+            try {
+                available = Boolean(control?.available());
+            } catch (_e) {
+                available = false;
             }
-
-            if (event.get_button() === 1 && this._view === 'main') {
-                longPressTriggered = false;
-                longPressId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
-                    longPressId = 0;
-                    longPressTriggered = true;
-                    if (this._view === 'main' && this._ccButton?.menu.isOpen)
-                        this._showDetail('bluetooth');
-                    return GLib.SOURCE_REMOVE;
-                });
-            }
-
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        circle.connect('button-release-event', () => {
-            if (longPressId) {
-                GLib.source_remove(longPressId);
-                longPressId = 0;
-            }
-            if (longPressTriggered) {
-                longPressTriggered = false;
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        circle.connect('clicked', () => {
-            if (longPressTriggered)
-                return;
-            this._bluetooth?.toggle();
-        });
-
-        return circle;
+            return `${entry.id}:${available ? 1 : 0}:${entry.size}`;
+        }).join('|');
     }
 
     _syncMainView() {
@@ -1796,195 +1776,27 @@ export class TahoeControlCenter {
         if (!refs || this._destroyed)
             return;
 
-        const network = this._network;
-
-        if (refs.wifi) {
-            let subtitle = 'No disponible';
-            let on = false;
-            let icon = 'network-wireless-signal-none-symbolic';
-            let sensitive = false;
-
-            if (network && !network.failed) {
-                sensitive = true;
-                icon = network.wifiIconName;
-                if (!network.hasWifi) {
-                    subtitle = network.ethernetConnected ? 'Ethernet' : 'No disponible';
-                    on = network.ethernetConnected;
-                    sensitive = false;
-                } else if (!network.wifiEnabled) {
-                    subtitle = 'Desactivado';
-                } else {
-                    on = true;
-                    subtitle = network.wifiSsid || 'No conectado';
-                }
-            }
-
-            refs.wifi.setSubtitle(subtitle);
-            refs.wifi.setOn(on);
-            refs.wifi.setIcon(icon);
-            refs.wifi.setSensitive(sensitive);
-        }
-
-        if (refs.bluetooth) {
-            const bluetooth = this._bluetooth;
-            const available = Boolean(bluetooth?.available);
-            refs.bluetooth.setOn(Boolean(bluetooth?.enabled));
-            refs.bluetooth.setIcon(bluetooth?.iconName ?? 'bluetooth-disabled-symbolic');
-            refs.bluetooth.opacity = available ? 255 : 170;
-            refs.bluetooth.reactive = available;
-        }
-
-        if (refs.airplane) {
-            const supported = Boolean(this._rfkill?.show_airplane_mode);
-            const on = Boolean(this._rfkill?.airplane_mode);
-            refs.airplane.visible = true;
-            refs.airplane.setOn(on);
-            refs.airplane.reactive = supported && !this._rfkill?.hw_airplane_mode;
-            refs.airplane.opacity = this._rfkill?.hw_airplane_mode ? 170 : 255;
-        }
-
-        if (refs.focus) {
-            const dnd = !this._getShowBanners();
-            refs.focus.setOn(dnd);
-            refs.focus.setSubtitle(dnd ? 'No molestar' : 'Desactivado');
-        }
-
-        if (refs.dark) {
-            const dark = this._tahoeTheme?.isDark ?? false;
-            refs.dark.setOn(dark);
-        }
-
-        if (refs.night) {
-            let enabled = false;
-            let supported = true;
+        for (const item of refs.controls) {
             try {
-                enabled = this._colorSettings?.get_boolean('night-light-enabled') ?? false;
-            } catch (_e) {
-                enabled = false;
-            }
-            try {
-                supported = global.backend.get_monitor_manager()
-                    .night_light_supported !== false;
-            } catch (_e) {
-                supported = true;
-            }
-            refs.night.setOn(enabled);
-            refs.night.reactive = supported;
-            refs.night.opacity = supported ? 255 : 170;
-        }
-
-        const scale = Main.brightnessManager?.globalScale ?? null;
-        if (refs.brightness) {
-            refs.brightness.visible = Boolean(scale);
-            if (scale) {
-                this._updatingBrightnessSlider = true;
-                refs.brightnessSlider.value = scale.value;
-                this._updatingBrightnessSlider = false;
+                item.built?.sync?.();
+            } catch (e) {
+                console.error(`${LOG} No se pudo sincronizar «${item.control.id}»:`, e);
             }
         }
 
-        if (refs.sound) {
-            const sink = this._sink;
-            refs.sound.visible = Boolean(sink);
-            if (sink) {
-                let volume = 0;
-                let muted = true;
-                try {
-                    muted = Boolean(sink.is_muted);
-                    const max = this._mixer?.get_vol_max_norm() || 1;
-                    volume = muted ? 0 : Math.clamp(sink.volume / max, 0, 1);
-                } catch (_e) {
-                    volume = 0;
-                    muted = true;
-                }
-
-                this._updatingVolumeSlider = true;
-                refs.soundSlider.value = volume;
-                this._updatingVolumeSlider = false;
-
-                let leftIcon = 'audio-volume-low-symbolic';
-                if (muted)
-                    leftIcon = 'audio-volume-muted-symbolic';
-                else if (volume < 0.33)
-                    leftIcon = 'audio-volume-low-symbolic';
-                else if (volume < 0.66)
-                    leftIcon = 'audio-volume-medium-symbolic';
-                else
-                    leftIcon = 'audio-volume-high-symbolic';
-
-                refs.soundLeft.set_child(new St.Icon({
-                    icon_name: leftIcon,
-                    icon_size: 13,
-                    style_class: 'tahoe-cc-icon',
-                }));
-
-                if (refs.soundOutput) {
-                    const device = this._deviceForSink(sink);
-                    refs.soundOutput.setIcon(this._deviceIconName(device, sink));
-                }
-            }
-        }
-
-        if (refs.media) {
-            const showSetting = this._getBoolean(
-                'control-center-show-now-playing', true);
-            const media = this._media;
-            const hasPlayer = Boolean(showSetting && media?.hasPlayer && media.title);
-
-            refs.media.setEmpty(!hasPlayer);
-            if (hasPlayer) {
-                refs.media.title.text = media.title;
-                refs.media.artist.text = media.artist;
-                refs.media.artist.visible = Boolean(media.artist);
-                if (refs._mediaPlaying !== media.playing) {
-                    refs.media.setPlaying(media.playing);
-                    refs._mediaPlaying = media.playing;
-                }
-                refs.media.previous.opacity = media.canGoPrevious ? 255 : 120;
-                refs.media.previous.reactive = media.canGoPrevious;
-                refs.media.next.opacity = media.canGoNext ? 255 : 120;
-                refs.media.next.reactive = media.canGoNext;
-                this._updateArtwork(refs, media.artUrl);
-            } else {
-                refs._mediaArtUrl = null;
-                refs._mediaPlaying = null;
-            }
-        }
-
-        if (refs.power) {
-            const available = Boolean(this._powerProfiles?.available);
-            refs.power.visible = available;
-            if (available) {
-                refs.power.setIcon(this._powerProfiles.activeInfo.iconName);
-                refs.power.accessible_name =
-                    `Perfil de energía: ${this._powerProfiles.activeInfo.name}`;
-            }
-        }
-    }
-
-    _updateArtwork(refs, artUrl) {
-        if (refs._mediaArtUrl === artUrl)
+        if (this._rendering || this._view !== 'main' || this._layoutApplying)
             return;
 
-        refs._mediaArtUrl = artUrl;
-
-        const url = parseArtwork(artUrl);
-        if (!url) {
-            refs.media.art.set_style(null);
-            refs.media.art.remove_style_class_name('tahoe-cc-media-art-image');
-            refs.media.artIcon.visible = true;
+        const key = this._availabilityKeyForLayout();
+        if (key === this._availabilityKey)
             return;
-        }
 
-        try {
-            refs.media.art.set_style(
-                `background-image: url("${escapeCssUrl(url)}");`);
-            refs.media.art.add_style_class_name('tahoe-cc-media-art-image');
-            refs.media.artIcon.visible = false;
-        } catch (e) {
-            console.error(`${LOG} No se pudo mostrar la carátula:`, e);
-            refs.media.artIcon.visible = true;
-        }
+        this._availabilityKey = key;
+        this._addIdle(() => {
+            if (!this._destroyed && this._view === 'main' &&
+                this._ccButton?.menu.isOpen)
+                this._renderMain();
+        });
     }
 
     // ------------------------------------------------------------------
@@ -2008,7 +1820,13 @@ export class TahoeControlCenter {
         if (!this._ccRoot)
             return;
 
+        if (this._view.startsWith('ext:')) {
+            this._renderExternalMenu(this._view.slice(4));
+            return;
+        }
+
         this._destroyMainGlassHandles();
+        this._restoreExternalMenu();
         this._clearChildren(this._ccRoot);
         this._mainRefs = null;
         this._detailRefs = {};
@@ -2033,6 +1851,7 @@ export class TahoeControlCenter {
             return;
 
         this._ccRoot.add_child(result.sheet);
+        this._addGlass(result.sheet, 22);
         this._detailRefs = result.refs;
         this._animateIn(result.sheet);
 
@@ -2047,7 +1866,9 @@ export class TahoeControlCenter {
 
     _buildWifiSheet({showBack = false, popup = false} = {}) {
         const refs = {};
-        const sheet = this._createSheet('tahoe-cc-sheet-wifi', 22, '', !popup);
+        // El cristal se adjunta cuando la hoja ya cuelga del menú (si se
+        // adjunta antes, el motor la inserta por encima del contenido).
+        const sheet = this._createSheet('tahoe-cc-sheet-wifi', 22, '', false);
 
         const header = createDetailHeader({
             title: 'Wi‑Fi',
@@ -2144,7 +1965,7 @@ export class TahoeControlCenter {
 
     _buildBluetoothSheet({showBack = false} = {}) {
         const refs = {};
-        const sheet = this._createSheet('tahoe-cc-sheet-bluetooth', 22);
+        const sheet = this._createSheet('tahoe-cc-sheet-bluetooth', 22, '', false);
 
         const header = createDetailHeader({
             title: 'Bluetooth',
@@ -2205,7 +2026,7 @@ export class TahoeControlCenter {
         const refs = {};
         const sheet = this._createSheet(popup
             ? 'tahoe-cc-sheet-sound-popup'
-            : 'tahoe-cc-sheet-sound', 22, '', !popup);
+            : 'tahoe-cc-sheet-sound', 22, '', false);
 
         if (showBack) {
             const header = createDetailHeader({
@@ -2893,6 +2714,434 @@ export class TahoeControlCenter {
     }
 
     // ------------------------------------------------------------------
+    // Registro, layout y controles externos
+    // ------------------------------------------------------------------
+
+    /**
+     * Entradas del registro con sus metadatos, para el editor futuro.
+     * Devuelve [{id, name, category, icon, sizes, defaultSize, available,
+     * external}].
+     */
+    getRegistry() {
+        // El editor puede pedir el catálogo antes de abrir el panel: descubre
+        // los QuickToggle/QuickSlider que ya estén en el menú de GNOME.
+        if (!this._destroyed && this._qs && this._registry)
+            this._refreshExternalRegistry();
+        return this._registry?.list() ?? [];
+    }
+
+    /** Copia de la distribución efectiva. */
+    getLayout() {
+        if (!this._layout) {
+            const raw = this._getString('control-center-layout', '');
+            this._layout = parseLayout(raw);
+        }
+        return cloneLayout(this._layout);
+    }
+
+    /**
+     * Reemplaza la distribución. Acepta la lista [{id, size}] o su JSON.
+     * La clave de GSettings se actualiza y el Centro de control abierto se
+     * reconstruye en el acto.
+     */
+    setLayout(layout) {
+        const next = parseLayout(layout, []);
+        this._layout = next;
+
+        if (this._settings) {
+            this._layoutApplying = true;
+            try {
+                this._settings.set_string('control-center-layout',
+                    layoutToJSON(next));
+            } catch (e) {
+                console.error(`${LOG} No se pudo guardar el layout:`, e);
+            } finally {
+                this._layoutApplying = false;
+            }
+        }
+
+        if (this._ccButton?.menu.isOpen && this._view === 'main')
+            this._renderMain();
+    }
+
+    /** Vuelve a la distribución de referencia de Tahoe. */
+    resetLayout() {
+        this.setLayout(parseLayout(''));
+    }
+
+    /**
+     * Stubs del modo edición. El editor visual (arrastrar, redimensionar,
+     * catálogo de controles) se implementará sobre esta API; aquí sólo se
+     * registra el estado para que getRegistry()/getLayout()/setLayout() ya
+     * funcionen desde fuera.
+     */
+    enterEditMode() {
+        this._editMode = true;
+    }
+
+    exitEditMode() {
+        this._editMode = false;
+        if (this._ccButton?.menu.isOpen && this._view === 'main')
+            this._renderMain();
+    }
+
+    _onLayoutChanged() {
+        if (this._destroyed || this._layoutApplying)
+            return;
+
+        const next = parseLayout(this._getString('control-center-layout', ''));
+        const current = this._layout ?? [];
+        if (JSON.stringify(current) === JSON.stringify(next))
+            return;
+
+        this._layout = next;
+        if (this._ccButton?.menu.isOpen && this._view === 'main')
+            this._renderMain();
+    }
+
+    _quickSettingsGrid() {
+        return this._qs?.menu?._grid ?? null;
+    }
+
+    /** Ítems de GNOME que ya están representados por nuestros controles. */
+    _knownQuickSettingsActors() {
+        const known = new Set();
+        const indicatorNames = [
+            '_network', '_bluetooth', '_system', '_volumeOutput',
+            '_volumeInput', '_brightness', '_nightLight', '_darkMode',
+            '_doNotDisturb', '_powerProfiles', '_rfkill', '_autoRotate',
+            '_backlight', '_thunderbolt', '_camera', '_remoteAccess',
+            '_location', '_unsafeMode', '_backgroundApps',
+        ];
+
+        for (const name of indicatorNames) {
+            const indicator = this._qs?.[name];
+            for (const item of indicator?.quickSettingsItems ?? [])
+                known.add(item);
+        }
+
+        return known;
+    }
+
+    _discoverExternalItems() {
+        const grid = this._quickSettingsGrid();
+        if (!grid || !this._qs)
+            return [];
+
+        const known = this._knownQuickSettingsActors();
+        const items = [];
+
+        for (const child of grid.get_children()) {
+            if (!child || known.has(child))
+                continue;
+            // El placeholder del QuickSettingsLayout y la capa de menús no
+            // son botones; los ítems de otras extensiones sí.
+            if (!(child instanceof St.Button))
+                continue;
+            if (!child.visible)
+                continue;
+            items.push(child);
+        }
+
+        return items;
+    }
+
+    _refreshExternalRegistry() {
+        if (!this._registry)
+            return [];
+
+        try {
+            this._externalEntries = this._registry.updateExternals(
+                this._discoverExternalItems());
+        } catch (e) {
+            console.error(`${LOG} No se pudieron registrar los controles externos:`, e);
+            this._externalEntries = [];
+        }
+
+        return this._externalEntries;
+    }
+
+    _queueExternalRefresh() {
+        if (this._destroyed || this._externalSyncId)
+            return;
+
+        this._externalSyncId = GLib.idle_add(
+            GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._externalSyncId = 0;
+                if (this._destroyed)
+                    return GLib.SOURCE_REMOVE;
+
+                const entries = this._refreshExternalRegistry();
+                this._autoAddExternals(entries);
+
+                if (this._view.startsWith('ext:') &&
+                    !this._registry?.getExternal(this._view.slice(4))) {
+                    this._view = 'main';
+                    if (this._ccButton?.menu.isOpen)
+                        this._renderMain();
+                } else if (this._ccButton?.menu.isOpen &&
+                    this._view === 'main') {
+                    this._renderMain();
+                } else {
+                    this._queueSync();
+                }
+
+                return GLib.SOURCE_REMOVE;
+            });
+    }
+
+    _getStrv(key, fallback = []) {
+        try {
+            return this._settings?.get_strv(key) ?? fallback;
+        } catch (_e) {
+            return fallback;
+        }
+    }
+
+    /**
+     * La primera vez que se descubre un control externo se añade al final
+     * como "small" (así Caffeine sigue accesible sin editor). Se recuerda en
+     * `control-center-known-externals` para no reañadirlo si el usuario lo
+     * quita después.
+     */
+    _autoAddExternals(entries) {
+        if (!this._settings || !entries.length)
+            return;
+
+        const knownSet = new Set(
+            this._getStrv('control-center-known-externals'));
+        const layout = this.getLayout();
+        const ids = new Set(layout.map(entry => entry.id));
+        let knownChanged = false;
+        let layoutChanged = false;
+
+        for (const entry of entries) {
+            if (!entry?.external)
+                continue;
+            if (!knownSet.has(entry.id)) {
+                knownSet.add(entry.id);
+                knownChanged = true;
+
+                if (!ids.has(entry.id)) {
+                    layout.push({
+                        id: entry.id,
+                        size: entry.defaultSize ?? 'small',
+                    });
+                    ids.add(entry.id);
+                    layoutChanged = true;
+                }
+            }
+        }
+
+        if (!knownChanged && !layoutChanged)
+            return;
+
+        this._layout = layout;
+        this._layoutApplying = true;
+        try {
+            if (knownChanged) {
+                this._settings.set_strv('control-center-known-externals',
+                    [...knownSet]);
+            }
+            if (layoutChanged) {
+                this._settings.set_string('control-center-layout',
+                    layoutToJSON(layout));
+            }
+        } catch (e) {
+            console.error(`${LOG} No se pudo registrar un control externo:`, e);
+        } finally {
+            this._layoutApplying = false;
+        }
+    }
+
+    /**
+     * Ejecuta el clic real del control original. En los QuickToggle de St
+     * Button el clic invierte `checked` antes de emitir la señal; se replica
+     * ese orden para que las extensiones que escuchan `checked` funcionen.
+     */
+    _invokeExternal(entry) {
+        if (!entry || entry.destroyed || !entry.item)
+            return;
+
+        const item = entry.item;
+        try {
+            let toggleMode = false;
+            try {
+                toggleMode = Boolean(item.toggleMode ?? item.toggle_mode);
+            } catch (_e) {
+                toggleMode = false;
+            }
+
+            if (toggleMode && item.find_property?.('checked'))
+                item.checked = !item.checked;
+
+            // St.Button::clicked recibe el botón pulsado como único
+            // parámetro; las extensiones pueden declarar la señal sin args.
+            item.emit('clicked', 0);
+        } catch (e) {
+            console.error(`${LOG} No se pudo activar «${entry.id}»:`, e);
+        }
+
+        this._queueSync();
+    }
+
+    _showExternalMenu(id) {
+        const entry = this._registry?.getExternal(id);
+        if (!entry?.menu?.box) {
+            if (entry)
+                this._invokeExternal(entry);
+            return;
+        }
+
+        this._view = `ext:${id}`;
+        this._renderExternalMenu(id);
+    }
+
+    _renderExternalMenu(id) {
+        const entry = this._registry?.getExternal(id);
+        if (!this._ccRoot || !entry?.menu?.box) {
+            this._view = 'main';
+            if (this._ccRoot)
+                this._renderMain();
+            return;
+        }
+
+        this._destroyMainGlassHandles();
+        this._restoreExternalMenu();
+        this._clearChildren(this._ccRoot);
+        this._mainRefs = null;
+        this._view = `ext:${id}`;
+        this._detailRefs = {refs: {}};
+
+        const sheet = this._createSheet('tahoe-cc-sheet-external', 22, '', false);
+        const header = createDetailHeader({
+            title: entry.name,
+            onBack: () => this._goBack(),
+        });
+        sheet.add_child(header.header);
+
+        const box = entry.menu.box;
+        try {
+            const parent = box.get_parent();
+            if (parent) {
+                this._externalMenuHome = {
+                    parent,
+                    index: parent.get_children().indexOf(box),
+                    box,
+                };
+                parent.remove_child(box);
+            }
+
+            box.x_expand = true;
+            box.add_style_class_name('tahoe-cc-external-menu');
+            sheet.add_child(box);
+        } catch (e) {
+            console.error(`${LOG} No se pudo abrir el menú externo:`, e);
+            this._externalMenuHome = null;
+        }
+
+        this._ccRoot.add_child(sheet);
+        this._addGlass(sheet, 22);
+        this._animateIn(sheet);
+    }
+
+    _restoreExternalMenu() {
+        const home = this._externalMenuHome;
+        this._externalMenuHome = null;
+        if (!home)
+            return;
+
+        const {box, parent, index} = home;
+        try {
+            if (!box)
+                return;
+
+            box.remove_style_class_name('tahoe-cc-external-menu');
+            if (box.get_parent())
+                box.get_parent().remove_child(box);
+
+            if (parent) {
+                const count = parent.get_n_children();
+                parent.insert_child_at_index(box,
+                    Math.min(Math.max(index, 0), count));
+            }
+        } catch (e) {
+            console.error(`${LOG} No se pudo devolver el menú externo:`, e);
+        }
+    }
+
+    _startScreenRecording() {
+        try {
+            this._ccButton?.menu.close();
+        } catch (_e) {
+            // Ignorar.
+        }
+
+        this._addIdle(() => {
+            try {
+                // UIMode.SCREENCAST = 1 (no está exportado por screenshot.js).
+                Main.screenshotUI?.open(1)?.catch(e =>
+                    console.error(`${LOG} No se pudo grabar la pantalla:`, e));
+            } catch (e) {
+                console.error(`${LOG} No se pudo grabar la pantalla:`, e);
+            }
+        });
+    }
+
+    _openBatteryPopover() {
+        try {
+            this._ccButton?.menu.close();
+        } catch (_e) {
+            // Ignorar.
+        }
+
+        this._addIdle(() => {
+            try {
+                this._batteryButton?.menu.open();
+            } catch (e) {
+                console.error(`${LOG} No se pudo abrir la batería:`, e);
+            }
+        });
+    }
+
+    _calculatorAvailable() {
+        try {
+            if (Shell.AppSystem.get_default()
+                .lookup_app('org.gnome.Calculator.desktop'))
+                return true;
+        } catch (_e) {
+            // Sin AppSystem.
+        }
+
+        return Boolean(GLib.find_program_in_path('gnome-calculator'));
+    }
+
+    _openCalculator() {
+        try {
+            this._ccButton?.menu.close();
+        } catch (_e) {
+            // Ignorar.
+        }
+
+        try {
+            const app = Shell.AppSystem.get_default()
+                .lookup_app('org.gnome.Calculator.desktop');
+            if (app) {
+                app.activate();
+                return;
+            }
+        } catch (e) {
+            console.error(`${LOG} No se pudo abrir la Calculadora:`, e);
+        }
+
+        try {
+            Util.spawn(['gnome-calculator']);
+        } catch (e) {
+            console.error(`${LOG} No se pudo lanzar gnome-calculator:`, e);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Acciones
     // ------------------------------------------------------------------
 
@@ -2987,7 +3236,7 @@ export class TahoeControlCenter {
     // ------------------------------------------------------------------
 
     _syncAll() {
-        if (this._destroyed)
+        if (this._destroyed || this._panelButtonsGone)
             return;
 
         this._updatePanelButtons();
@@ -3007,7 +3256,7 @@ export class TahoeControlCenter {
                 // Ignorar.
             }
 
-            if (present) {
+            if (present && this._batteryLabel && this._batteryIcon) {
                 const showPercent = this._getBoolean(
                     'control-center-show-battery-percent', true);
                 this._batteryLabel.text = `${battery.percentage}%`;
@@ -3025,7 +3274,7 @@ export class TahoeControlCenter {
                 // Ignorar.
             }
 
-            if (visible) {
+            if (visible && this._soundPanelIcon) {
                 this._soundPanelIcon.icon_name =
                     this._sinkIconName(this._sink, false);
             }
@@ -3042,7 +3291,7 @@ export class TahoeControlCenter {
             } catch (_e) {
                 // Ignorar.
             }
-            if (visible)
+            if (visible && this._wifiPanelIcon)
                 this._wifiPanelIcon.icon_name = network.wifiIconName;
         }
 
@@ -3068,7 +3317,19 @@ export class TahoeControlCenter {
 
         this._destroyed = true;
 
+        // Si hay un menú externo prestado, devolverlo antes de destruir el
+        // actor del Centro de control.
+        this._restoreExternalMenu();
         this._restoreQuickSettingsShortcut();
+
+        if (this._externalSyncId) {
+            try {
+                GLib.source_remove(this._externalSyncId);
+            } catch (_e) {
+                // Ya retirado.
+            }
+            this._externalSyncId = 0;
+        }
 
         for (const button of [this._ccButton, this._batteryButton,
             this._soundButton, this._wifiButton]) {
@@ -3118,6 +3379,16 @@ export class TahoeControlCenter {
 
         this._restoreQuickSettingsIndicators();
 
+        if (this._registry) {
+            try {
+                this._registry.destroy();
+            } catch (e) {
+                console.error(`${LOG} No se pudo destruir el registro:`, e);
+            }
+            this._registry = null;
+        }
+        this._externalEntries = [];
+
         for (const id of [...this._timeoutIds]) {
             try {
                 GLib.source_remove(id);
@@ -3161,9 +3432,15 @@ export class TahoeControlCenter {
             this._media,
         ]) {
             try {
-                controller?.destroy();
+                if (typeof controller?.destroy === 'function') {
+                    controller.destroy();
+                } else if (controller) {
+                    console.debug(`${LOG} Controlador sin destroy(): ` +
+                        `${controller.constructor?.name ?? '?'}`);
+                }
             } catch (e) {
-                console.error(`${LOG} No se pudo destruir un controlador:`, e);
+                console.error(`${LOG} No se pudo destruir el controlador ` +
+                    `«${controller?.constructor?.name ?? '?'}»:`, e);
             }
         }
 
@@ -3183,6 +3460,9 @@ export class TahoeControlCenter {
         this._colorSettings = null;
         this._panel = null;
         this._extension = null;
+        this._layout = null;
+        this._keyboardBacklight = null;
+        this._externalMenuHome = null;
 
         this._unloadStylesheet();
     }
