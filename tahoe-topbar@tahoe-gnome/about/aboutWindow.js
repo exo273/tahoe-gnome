@@ -19,6 +19,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 
 import * as SysInfo from './sysinfo.js';
+import {glassLook} from '../liquidGlass.js';
 
 const WINDOW_WIDTH = 290;
 const IMAGE_MAX_WIDTH = 200;
@@ -205,6 +206,11 @@ export class AboutDialog {
         this._gpuPending = false;
         this._gpuToken = 0;
 
+        this._glassEngine = null;
+        this._glassHandle = null;
+        this._glassUnsubscribe = null;
+        this._themeGlassId = 0;
+
         this._image = null;
         this._imageHolder = null;
         this._title = null;
@@ -215,6 +221,12 @@ export class AboutDialog {
 
         this._loadStylesheet();
         this._bindSettings();
+
+        this._glassUnsubscribe = extension?.onGlassEngineChanged?.(
+            engine => this._setGlassEngine(engine)) ?? null;
+        const theme = extension?._theme ?? null;
+        if (theme?.connect)
+            this._themeGlassId = theme.connect(() => this._updateGlassLook());
 
         this._actor = this._buildActor();
         this._ensureOnStage();
@@ -659,6 +671,39 @@ export class AboutDialog {
     /* Ventana                                                        */
     /* -------------------------------------------------------------- */
 
+    _setGlassEngine(engine) {
+        this._glassEngine = engine;
+        this._syncGlass();
+    }
+
+    _updateGlassLook() {
+        this._glassHandle?.update(glassLook(this._extension?._theme));
+    }
+
+    _syncGlass() {
+        if (!this._isOpen || !this._actor || !this._glassEngine) {
+            this._destroyGlass();
+            return;
+        }
+
+        if (this._glassHandle) {
+            this._updateGlassLook();
+            return;
+        }
+
+        this._glassHandle = this._glassEngine.attach(this._actor,
+            glassLook(this._extension?._theme, {
+                cornerRadius: 18,
+                blurRadius: 14,
+                owner: 'about-window',
+            }));
+    }
+
+    _destroyGlass() {
+        this._glassHandle?.destroy();
+        this._glassHandle = null;
+    }
+
     _ensureOnStage() {
         if (!this._actor || this._actorAdded)
             return;
@@ -770,6 +815,7 @@ export class AboutDialog {
         this._isOpen = true;
 
         this._refreshContent();
+        this._syncGlass();
 
         this._actor.remove_all_transitions();
 
@@ -853,6 +899,7 @@ export class AboutDialog {
                 actor.set_scale(1, 1);
                 actor.translation_x = 0;
                 actor.translation_y = 0;
+                this._destroyGlass();
             },
         });
     }
@@ -868,6 +915,7 @@ export class AboutDialog {
         this._minimizedPos = null;
         this._endDrag();
         this._clearFocusSource();
+        this._destroyGlass();
 
         this._actor.remove_all_transitions();
         this._actor.hide();
@@ -1059,6 +1107,17 @@ export class AboutDialog {
         this._clearFocusSource();
         this._endDrag();
         this._disconnectSettings();
+
+        this._destroyGlass();
+        if (this._glassUnsubscribe) {
+            this._glassUnsubscribe();
+            this._glassUnsubscribe = null;
+        }
+        if (this._themeGlassId) {
+            this._extension?._theme?.disconnect(this._themeGlassId);
+            this._themeGlassId = 0;
+        }
+        this._glassEngine = null;
 
         const actor = this._actor;
         const wasAdded = this._actorAdded;

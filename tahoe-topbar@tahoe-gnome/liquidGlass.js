@@ -67,6 +67,32 @@ function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Rectángulo [x, y, w, h] de un actor en coordenadas del stage, con las
+ * transformaciones de sus ancestros (escala de las animaciones incluida).
+ */
+export function stageRect(actor) {
+    return getTransformedRect(actor);
+}
+
+/**
+ * Look del cristal para el modo claro/oscuro de TahoeTheme. Los módulos le
+ * añaden radio, blur y owner. En oscuro el tinte es casi negro y baja el
+ * brillo; en claro es blanco y lo sube un poco.
+ */
+export function glassLook(theme, extra = {}) {
+    const dark = theme?.isDark ?? true;
+    return {
+        tint: dark ? '#1c1c1e' : '#ffffff',
+        tintStrength: dark ? 0.35 : 0.25,
+        brightness: dark ? 0.85 : 1.05,
+        contrast: 1.0,
+        saturation: dark ? 1.15 : 1.05,
+        outline: {width: 1, color: dark ? '#4a4a4e' : '#ffffff'},
+        ...extra,
+    };
+}
+
 // El ancestro del actor que cuelga directamente de uiGroup. El cristal se
 // pone debajo de él: así lee el stage antes de que se pinte toda la rama del
 // actor (los menús se pintan a través de un offscreen y no sirven de padre).
@@ -103,6 +129,9 @@ function applyMaterial(glass, opts, settings) {
     glass.setBrightness(opts.brightness);
     glass.setContrast(opts.contrast);
     glass.setSaturation(opts.saturation);
+    // Las regiones no pasan por _syncSingle, así que el radio del handle se
+    // fija aquí una vez (y en update()); sin esto el shader usa su 60 por defecto.
+    glass.setCornerRadius(opts.cornerRadius);
     // Un prefijo de outline haría que MaterialSettings pisara estos valores
     // desde GSettings en cada cambio; aquí el look lo decide la API.
     if (opts.outline && opts.outline.width > 0) {
@@ -182,6 +211,34 @@ class GlassHandle {
         this._glass.syncSources();
     }
 
+    /**
+     * Corrige la geometría al principio del paint, cuando la allocation de la
+     * animación de apertura del menú ya es la de este frame. Dentro del hook
+     * los setters no piden otro frame (lo gestiona GlassActor).
+     */
+    _liveGeometry() {
+        const actor = this._actor;
+        if (!this._glass || !actor || !isActorValid(actor))
+            return;
+        if (!actor.mapped || !actor.visible)
+            return;
+
+        const monitor = Main.layoutManager.findMonitorForActor(actor)
+            ?? Main.layoutManager.primaryMonitor;
+        if (!monitor)
+            return;
+
+        const rect = getTransformedRect(actor);
+        if (!(rect[2] >= 1) || !(rect[3] >= 1))
+            return;
+
+        const opacity = actor.get_paint_opacity();
+        if (this._regions)
+            this._syncRegions(monitor, opacity);
+        else
+            this._syncSingle(monitor, rect, opacity);
+    }
+
     _syncSingle(monitor, rect, opacity) {
         const pad = this._options.padding;
         const bx = Math.round(rect[0] - monitor.x);
@@ -225,7 +282,7 @@ class GlassHandle {
             regions.push({
                 x: rx, y: ry, w: rw, h: rh,
                 tintR: tr, tintG: tg, tintB: tb,
-                baseStrength: raw.baseStrength ?? options.tintStrength,
+                baseStrength: raw.baseStrength ?? 0.0,
             });
             minX = Math.min(minX, rx + pad);
             minY = Math.min(minY, ry + pad);
@@ -333,6 +390,16 @@ export class LiquidGlassEngine {
         return this._createHandle(container, {...DEFAULT_OPTIONS, ...options}, getRects);
     }
 
+    /** Número de superficies vivas; 0 cuando no hay nada abierto. */
+    get activeHandles() {
+        return this._handles.size;
+    }
+
+    /** Si el motor escucha before-update en este momento. */
+    get frameLoopActive() {
+        return this._syncSignalId !== 0;
+    }
+
     _createHandle(actor, options, getRects) {
         const glass = new BackdropGlass({
             extensionPath: this._shaderPath,
@@ -349,6 +416,7 @@ export class LiquidGlassEngine {
         applyMaterial(glass, options, this._settings);
         insertBelowActor(glass, actor);
         const handle = new GlassHandle(this, actor, glass, options, getRects);
+        glass.setLiveGeometryHook(() => handle._liveGeometry());
         this._handles.add(handle);
         this._sync();
         this._startLoop();

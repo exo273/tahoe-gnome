@@ -534,7 +534,7 @@
 }
 
 .tahoe-theme-dark .tahoe-apple-menu .popup-sub-menu {
-    background-color: rgba(255, 255, 255, 0.06) !important;
+    background-color: transparent !important;
 }
 
 .tahoe-theme-dark .tahoe-apple-menu .popup-sub-menu .popup-menu-item {
@@ -1432,4 +1432,18 @@
 }
 .tahoe-theme-dark.tahoe-accent-slate .tahoe-cc-switch-on {
     background-color: #8e8e93 !important;
+}
+
+/* --------------------------------------------------------------------------
+   Apple menu con Liquid Glass: el fondo lo dibuja el motor.
+   -------------------------------------------------------------------------- */
+
+.tahoe-glass-liquid .tahoe-apple-menu .popup-menu-content {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.tahoe-theme-dark.tahoe-glass-liquid .tahoe-apple-menu .popup-menu-content {
+    background-color: transparent !important;
 }

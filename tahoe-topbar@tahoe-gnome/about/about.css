@@ -206,3 +206,17 @@
 .tahoe-theme-light .tahoe-about-window .tahoe-about-footer {
   color: rgba(0, 0, 0, 0.38);
 }
+
+/* ------------------------------------------------------------------
+ * Liquid Glass: la ventana deja ver el cristal del motor.
+ * ------------------------------------------------------------------ */
+
+.tahoe-glass-liquid .tahoe-about-window {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.tahoe-theme-light.tahoe-glass-liquid .tahoe-about-window {
+  background-color: transparent;
+}

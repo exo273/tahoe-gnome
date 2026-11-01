@@ -63,6 +63,13 @@ cierra con los archivos de la tabla.
    `extensionPath` el directorio `vendor/liquid-glass`, donde están
    `shaders/`. No se reescribió la carga.
 
+6. **`rendering/pipelines.js`: pipelines estáticos compartidos.** Las pasadas
+   de bajada/subida, el passthrough y el box-down no llevan estado por
+   cristal (RenderPasses las copia antes de escribir uniforms). Se cachean por
+   contexto Cogl para que abrir y cerrar menús no vuelva a compilar los mismos
+   shaders en cada superficie. `reloadShaders()` en desarrollo seguiría usando
+   la copia cacheada hasta reiniciar la shell.
+
 Todo lo demás es el código compilado del commit `a3fb66f` sin modificar.
 
 ## Settings
@@ -77,6 +84,17 @@ Glass"): `glass-*`, `blur-method`, `shadow-radius`, `shadow-intensity`,
 
 ## Notas de integración
 
+- `liquidGlass.js`, en la raíz de la extensión, expone `LiquidGlassEngine`,
+  `glassLook(theme)` (tintes claro/oscuro) y `stageRect(actor)`. Los módulos
+  piden handles mientras el elemento está visible y los destruyen al cerrar,
+  de modo que el motor no deja ningún `before-update` conectado con todo
+  cerrado.
+- El Centro de control usa tres `attachRegions` (círculos/píldoras radio 31,
+  tarjetas radio 24, pie radio 13) y `attach` para las hojas de detalle
+  (radio 22). Los toggles activos se excluyen de las regiones porque su
+  relleno CSS es opaco.
+- Los menús usan `attach(menu.box, radio 14)`; los popovers del Centro de
+  control y la ventana Acerca de, radio 22 y 18.
 - El cristal se coloca en `Main.layoutManager.uiGroup`, justo debajo del
   ancestro del actor que cuelga de `uiGroup` (como hacen los menús del
   upstream). No se mete dentro del padre del actor porque muchos contenedores

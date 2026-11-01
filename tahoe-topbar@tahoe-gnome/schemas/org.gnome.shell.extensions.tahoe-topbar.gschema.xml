@@ -43,6 +43,26 @@
       <default>'transparent'</default>
       <summary>Estilo de fondo (Tahoe = transparent)</summary>
     </key>
+    <key name="panel-glass" type="s">
+      <choices>
+        <choice value="off"/>
+        <choice value="pill"/>
+        <choice value="islands"/>
+      </choices>
+      <default>'off'</default>
+      <summary>Cristal Liquid Glass en la barra superior</summary>
+      <description>off = barra como el tema la dibuja; pill = una píldora flotante con la barra entera; islands = una píldora detrás de cada grupo de botones. Sólo se aplica con glass-style = liquid.</description>
+    </key>
+    <key name="glass-style" type="s">
+      <choices>
+        <choice value="liquid"/>
+        <choice value="blur"/>
+        <choice value="none"/>
+      </choices>
+      <default>'liquid'</default>
+      <summary>Estilo del cristal</summary>
+      <description>liquid = motor Liquid Glass (refracción y borde iluminado); blur = desenfoque de GNOME Shell, sin refracción; none = sólo el fondo translúcido del CSS.</description>
+    </key>
     <key name="panel-opacity" type="d">
       <range min="0.0" max="1.0"/>
       <default>0.35</default>
@@ -115,11 +135,6 @@
       <default>true</default>
       <summary>Mostrar el indicador de sonido en la barra</summary>
     </key>
-    <key name="control-center-blur" type="b">
-      <default>true</default>
-      <summary>Desenfocar el fondo detrás de los módulos de cristal</summary>
-    </key>
-
     <!-- ===== Reloj ===== -->
     <key name="move-clock-right" type="b">
       <default>true</default>

@@ -99,6 +99,59 @@ export function clearShaderSources() {
     shaderSources.clear();
 }
 
+
+// The four pipelines every glass shares: they hold no per-glass uniforms, and
+// RenderPasses copies them before a pass writes any. Building them per glass
+// recompiled the same shaders on every menu open.
+const staticPipelinesByContext = new WeakMap();
+
+function getStaticPipelines(ctx, downSource, upSource) {
+    const cached = staticPipelinesByContext.get(ctx);
+    if (cached && cached.downSource === downSource && cached.upSource === upSource)
+        return cached;
+
+    const shared = { downSource, upSource };
+
+    shared.downsample = Cogl.Pipeline.new(ctx);
+    configureSamplerLayer(shared.downsample, 0);
+    if (downSource) {
+        const snippet = splitShader(downSource, () => { });
+        const s = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, uniformDeclarations(snippet.decl), null);
+        s.set_replace(snippet.body);
+        shared.downsample.add_snippet(s);
+    }
+
+    shared.upsample = Cogl.Pipeline.new(ctx);
+    configureSamplerLayer(shared.upsample, 0);
+    if (upSource) {
+        const snippet = splitShader(upSource, () => { });
+        const s = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, uniformDeclarations(snippet.decl), null);
+        s.set_replace(snippet.body);
+        shared.upsample.add_snippet(s);
+    }
+
+    shared.passthrough = Cogl.Pipeline.new(ctx);
+    configureSamplerLayer(shared.passthrough, 0);
+
+    // For a 4x reduction a single bilinear fetch covers only the inner 2x2 of
+    // each 4x4 block and aliases. These four taps land on source texel
+    // corners, so each fetch averages one 2x2 quadrant and together they
+    // weigh the whole block equally.
+    shared.boxDown = Cogl.Pipeline.new(ctx);
+    configureSamplerLayer(shared.boxDown, 0);
+    const boxSnip = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, uniformDeclarations('uniform vec2 inv_size;\n'), null);
+    boxSnip.set_replace('vec2 uv = cogl_tex_coord_in[0].st;\n' +
+        'vec4 c  = texture2D(cogl_sampler0, uv + vec2( 1.0,  1.0) * inv_size);\n' +
+        'c += texture2D(cogl_sampler0, uv + vec2( 1.0, -1.0) * inv_size);\n' +
+        'c += texture2D(cogl_sampler0, uv + vec2(-1.0,  1.0) * inv_size);\n' +
+        'c += texture2D(cogl_sampler0, uv + vec2(-1.0, -1.0) * inv_size);\n' +
+        'cogl_color_out = c * 0.25;\n');
+    shared.boxDown.add_snippet(boxSnip);
+
+    staticPipelinesByContext.set(ctx, shared);
+    return shared;
+}
+
 export class ShaderPipelines {
     _logger;
     _shapeTexture;
@@ -178,40 +231,11 @@ export class ShaderPipelines {
      * exists; call clear() first to recompile.
      */
     initialize(ctx) {
-        this.downsample = Cogl.Pipeline.new(ctx);
-        configureSamplerLayer(this.downsample, 0);
-        if (this._downsampleSource) {
-            const downSnippet = splitShader(this._downsampleSource, message => this._logger?.warn(message));
-            const s = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, uniformDeclarations(downSnippet.decl), null);
-            s.set_replace(downSnippet.body);
-            this.downsample.add_snippet(s);
-        }
-        this.upsample = Cogl.Pipeline.new(ctx);
-        configureSamplerLayer(this.upsample, 0);
-        if (this._upsampleSource) {
-            const upSnippet = splitShader(this._upsampleSource, message => this._logger?.warn(message));
-            const s = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, uniformDeclarations(upSnippet.decl), null);
-            s.set_replace(upSnippet.body);
-            this.upsample.add_snippet(s);
-        }
-        this.passthrough = Cogl.Pipeline.new(ctx);
-        configureSamplerLayer(this.passthrough, 0);
-        // For a 4x reduction a single bilinear fetch covers only the inner 2x2 of
-        // each 4x4 block and aliases. These four taps land on source texel
-        // corners, so each fetch averages one 2x2 quadrant and together they
-        // weigh the whole block equally.
-        this.boxDown = Cogl.Pipeline.new(ctx);
-        configureSamplerLayer(this.boxDown, 0);
-        {
-            const boxSnip = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, uniformDeclarations('uniform vec2 inv_size;\n'), null);
-            boxSnip.set_replace('vec2 uv = cogl_tex_coord_in[0].st;\n' +
-                'vec4 c  = texture2D(cogl_sampler0, uv + vec2( 1.0,  1.0) * inv_size);\n' +
-                'c += texture2D(cogl_sampler0, uv + vec2( 1.0, -1.0) * inv_size);\n' +
-                'c += texture2D(cogl_sampler0, uv + vec2(-1.0,  1.0) * inv_size);\n' +
-                'c += texture2D(cogl_sampler0, uv + vec2(-1.0, -1.0) * inv_size);\n' +
-                'cogl_color_out = c * 0.25;\n');
-            this.boxDown.add_snippet(boxSnip);
-        }
+        const shared = getStaticPipelines(ctx, this._downsampleSource, this._upsampleSource);
+        this.downsample = shared.downsample;
+        this.upsample = shared.upsample;
+        this.passthrough = shared.passthrough;
+        this.boxDown = shared.boxDown;
         // The Gaussian pipelines depend on the blur radius and are compiled by
         // BlurRenderer when needed.
         this.composite = Cogl.Pipeline.new(ctx);

@@ -23,7 +23,8 @@ import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 import {getMixerControl} from 'resource:///org/gnome/shell/ui/status/volume.js';
 import {getRfkillManager} from 'resource:///org/gnome/shell/ui/status/rfkill.js';
 
-import {applyGlass} from './glass.js';
+import {applyGlass, removeGlass} from './glass.js';
+import {glassLook, stageRect} from '../liquidGlass.js';
 import {
     BatteryIcon,
     CircleButton,
@@ -151,6 +152,15 @@ export class TahoeControlCenter {
         this._timeoutIds = new Set();
         this._idleIds = new Set();
         this._glassActors = new Set();
+        this._roundActors = new Set();
+        this._cardActors = new Set();
+        this._footerActors = new Set();
+        this._mainGlassHandles = [];
+        this._sheetHandles = new Set();
+        this._popoverHandles = new Map();
+        this._glassEngine = null;
+        this._glassStyle = 'liquid';
+        this._glassUnsubscribe = null;
 
         this._theme = null;
         this._cssFile = null;
@@ -215,12 +225,15 @@ export class TahoeControlCenter {
         this._updatingVolumeSlider = false;
 
         this._syncTimeoutId = 0;
-        this._blurEnabled = true;
         this._showSoundIcon = true;
 
         this._loadStylesheet();
         this._loadSettings();
         this._bindTheme();
+
+        this._glassStyle = this._getString('glass-style', 'liquid');
+        this._glassUnsubscribe = this._extension?.onGlassEngineChanged?.(
+            engine => this._setGlassEngine(engine)) ?? null;
 
         this._createControllers();
         this._bindControllers();
@@ -303,7 +316,6 @@ export class TahoeControlCenter {
             this._colorSettings = null;
         }
 
-        this._blurEnabled = this._getBoolean('control-center-blur', true);
         this._showSoundIcon = this._getBoolean('control-center-show-sound-icon', true);
 
         if (this._settings) {
@@ -311,7 +323,7 @@ export class TahoeControlCenter {
                 'control-center-show-battery-percent',
                 'control-center-show-now-playing',
                 'control-center-show-sound-icon',
-                'control-center-blur',
+                'glass-style',
             ]) {
                 this._connect(this._settings, `changed::${key}`,
                     () => this._onSettingsChanged(key));
@@ -333,10 +345,19 @@ export class TahoeControlCenter {
 
         this._isLight = !(this._tahoeTheme?.isDark ?? true);
 
-        // El CSS global recolorea todos los actores; sólo hay que refrescar el
-        // brillo del desenfoque y los elementos pintados con Cairo.
+        // El CSS global recolorea todos los actores; hay que refrescar el
+        // cristal (motor o blur) y los elementos pintados con Cairo.
         this._refreshGlass();
+        this._applyGlassLook();
         this._repaintDrawings();
+        this._queueSync();
+    }
+
+    _setGlassEngine(engine) {
+        this._glassEngine = engine;
+        this._glassStyle = this._getString('glass-style', 'liquid');
+        if (!this._destroyed)
+            this._rebuildGlass();
     }
 
     _refreshGlass() {
@@ -344,17 +365,96 @@ export class TahoeControlCenter {
             try {
                 if (!actor?.get_stage())
                     continue;
+                if (this._glassStyle !== 'blur') {
+                    removeGlass(actor);
+                    continue;
+                }
                 const radius = actor._tahoeGlass?.radius ??
                     actor._tahoeGlassRadius ?? 24;
                 applyGlass(actor, {
                     radius,
-                    blur: this._blurEnabled,
+                    blur: true,
                     dark: !this._isLight,
                 });
             } catch (e) {
                 console.error(`${LOG} No se pudo actualizar el cristal:`, e);
             }
         }
+    }
+
+    _applyGlassLook() {
+        const look = glassLook(this._tahoeTheme);
+        for (const handle of this._mainGlassHandles)
+            handle.update(look);
+        for (const handle of this._sheetHandles)
+            handle.update(look);
+        for (const handle of this._popoverHandles.values())
+            handle.update(look);
+    }
+
+    /**
+     * Suelta todas las superficies y las rehace según el estilo actual. Se
+     * llama al cambiar glass-style o cuando aparece/desaparece el motor.
+     */
+    _rebuildGlass() {
+        this._destroyAllGlassHandles();
+        this._refreshGlass();
+        if (this._glassStyle !== 'liquid' || !this._glassEngine)
+            return;
+
+        if (this._ccButton?.menu.isOpen) {
+            if (this._view === 'main')
+                this._renderMain();
+            else
+                this._renderDetail();
+        }
+
+        for (const [menu, owner] of [
+            [this._batteryButton?.menu, 'cc-battery'],
+            [this._soundButton?.menu, 'cc-sound'],
+            [this._wifiButton?.menu, 'cc-wifi'],
+        ]) {
+            if (menu?.isOpen)
+                this._attachPopoverGlass(menu, owner);
+        }
+    }
+
+    _destroyAllGlassHandles() {
+        this._destroyMainGlassHandles();
+        for (const handle of [...this._sheetHandles])
+            handle.destroy();
+        this._sheetHandles.clear();
+        for (const handle of this._popoverHandles.values())
+            handle.destroy();
+        this._popoverHandles.clear();
+    }
+
+    _destroyMainGlassHandles() {
+        for (const handle of this._mainGlassHandles)
+            handle.destroy();
+        this._mainGlassHandles = [];
+    }
+
+    _attachPopoverGlass(menu, owner) {
+        if (!this._glassEngine || !menu?.box)
+            return;
+        if (this._popoverHandles.has(menu))
+            return;
+
+        const handle = this._glassEngine.attach(menu.box, glassLook(this._tahoeTheme, {
+            cornerRadius: 22,
+            blurRadius: 10,
+            owner,
+        }));
+        this._popoverHandles.set(menu, handle);
+    }
+
+    _detachPopoverGlass(menu) {
+        const handle = this._popoverHandles.get(menu);
+        if (!handle)
+            return;
+        handle.destroy();
+        this._popoverHandles.delete(menu);
     }
 
     _repaintDrawings() {
@@ -378,10 +478,14 @@ export class TahoeControlCenter {
             return;
 
         switch (key) {
-        case 'control-center-blur':
-            this._blurEnabled = this._getBoolean('control-center-blur', true);
-            this._refreshGlass();
+        case 'glass-style': {
+            const style = this._getString('glass-style', 'liquid');
+            if (style === this._glassStyle)
+                break;
+            this._glassStyle = style;
+            this._rebuildGlass();
             break;
+        }
         case 'control-center-show-sound-icon':
             this._showSoundIcon = this._getBoolean(
                 'control-center-show-sound-icon', true);
@@ -396,6 +500,14 @@ export class TahoeControlCenter {
     _getBoolean(key, fallback = false) {
         try {
             return this._settings?.get_boolean(key) ?? fallback;
+        } catch (_e) {
+            return fallback;
+        }
+    }
+
+    _getString(key, fallback = '') {
+        try {
+            return this._settings?.get_string(key) ?? fallback;
         } catch (_e) {
             return fallback;
         }
@@ -589,25 +701,58 @@ export class TahoeControlCenter {
     // Cristal
     // ------------------------------------------------------------------
 
+    _bucketForRadius(radius) {
+        if (radius >= 30)
+            return this._roundActors;
+        if (radius >= 20)
+            return this._cardActors;
+        return this._footerActors;
+    }
+
     _addGlass(actor, radius) {
         if (!actor || this._destroyed)
             return actor;
 
         this._glassActors.add(actor);
         actor._tahoeGlassRadius = radius;
-        actor.connect('destroy', () => this._glassActors.delete(actor));
+        actor.connect('destroy', () => {
+            this._glassActors.delete(actor);
+            this._roundActors.delete(actor);
+            this._cardActors.delete(actor);
+            this._footerActors.delete(actor);
+        });
 
-        // Los efectos necesitan que el actor esté en el escenario; se aplican
-        // en el siguiente idle, cuando ya está dentro del menú.
+        if (this._glassStyle === 'liquid' && this._glassEngine) {
+            if (radius === 22) {
+                const handle = this._glassEngine.attach(actor,
+                    glassLook(this._tahoeTheme, {
+                        cornerRadius: 22,
+                        blurRadius: 12,
+                        owner: 'cc-sheet',
+                    }));
+                this._sheetHandles.add(handle);
+                actor.connect('destroy', () => {
+                    handle.destroy();
+                    this._sheetHandles.delete(handle);
+                });
+                return actor;
+            }
+
+            this._bucketForRadius(radius).add(actor);
+            return actor;
+        }
+
+        // Con blur o sin efecto, el viejo Shell.BlurEffect sólo se aplica en
+        // el estilo blur; el idle espera a que el actor esté en el escenario.
         this._addIdle(() => {
-            if (this._destroyed)
+            if (this._destroyed || this._glassStyle !== 'blur')
                 return;
             try {
                 if (!actor.get_stage())
                     return;
                 applyGlass(actor, {
                     radius,
-                    blur: this._blurEnabled,
+                    blur: true,
                     dark: !this._isLight,
                 });
             } catch (e) {
@@ -695,8 +840,11 @@ export class TahoeControlCenter {
             this._setButtonOpen(this._batteryButton, open);
             if (open) {
                 this._buildBatteryPopover();
+                this._attachPopoverGlass(this._batteryButton.menu, 'cc-battery');
             }
         });
+        this._connect(this._batteryButton.menu, 'menu-closed',
+            () => this._detachPopoverGlass(this._batteryButton.menu));
 
         this._insertPanelButton(ROLES.battery, this._batteryButton);
     }
@@ -729,10 +877,13 @@ export class TahoeControlCenter {
             this._setButtonOpen(this._soundButton, open);
             if (open) {
                 this._buildSoundPopover();
+                this._attachPopoverGlass(this._soundButton.menu, 'cc-sound');
             } else {
                 this._soundPopoverRefs = null;
             }
         });
+        this._connect(this._soundButton.menu, 'menu-closed',
+            () => this._detachPopoverGlass(this._soundButton.menu));
 
         this._connect(this._soundButton, 'scroll-event', (actor, event) => {
             this._onSoundScroll(event);
@@ -770,6 +921,7 @@ export class TahoeControlCenter {
             this._setButtonOpen(this._wifiButton, open);
             if (open) {
                 this._buildWifiPopover();
+                this._attachPopoverGlass(this._wifiButton.menu, 'cc-wifi');
                 this._network?.requestScan();
                 this._addTimeout(900, () => {
                     if (this._wifiButton?.menu.isOpen)
@@ -777,6 +929,8 @@ export class TahoeControlCenter {
                 });
             }
         });
+        this._connect(this._wifiButton.menu, 'menu-closed',
+            () => this._detachPopoverGlass(this._wifiButton.menu));
 
         this._insertPanelButton(ROLES.wifi, this._wifiButton);
     }
@@ -1269,17 +1423,19 @@ export class TahoeControlCenter {
     _clearView() {
         this._mainRefs = null;
         this._detailRefs = null;
+        this._destroyAllGlassHandles();
         this._clearChildren(this._ccRoot);
         this._view = 'main';
     }
 
-    _createSheet(styleClass, radius, extraClass = '') {
+    _createSheet(styleClass, radius, extraClass = '', glass = true) {
         const sheet = new St.BoxLayout({
             style_class: `tahoe-cc-glass tahoe-cc-sheet ${styleClass} ${extraClass}`.trim(),
             orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
         });
-        this._addGlass(sheet, radius);
+        if (glass)
+            this._addGlass(sheet, radius);
         return sheet;
     }
 
@@ -1342,10 +1498,49 @@ export class TahoeControlCenter {
     // Rejilla principal
     // ------------------------------------------------------------------
 
+    _collectGlassRects(actors) {
+        const rects = [];
+        for (const actor of actors) {
+            if (!actor || !actor.mapped || !actor.visible)
+                continue;
+            // Un toggle activo pinta un relleno opaco (acento o blanco); no
+            // necesita cristal detrás y ahorra copia y blur.
+            if (actor.has_style_class_name('tahoe-cc-on'))
+                continue;
+            const [x, y, w, h] = stageRect(actor);
+            if (!(w >= 1) || !(h >= 1))
+                continue;
+            rects.push([x, y, w, h]);
+        }
+        return rects;
+    }
+
+    _syncMainGlassHandles(grid) {
+        this._destroyMainGlassHandles();
+        if (this._glassStyle !== 'liquid' || !this._glassEngine || !grid)
+            return;
+
+        const make = (actors, radius, owner) => this._glassEngine.attachRegions(
+            grid,
+            () => this._collectGlassRects(actors),
+            glassLook(this._tahoeTheme, {
+                cornerRadius: radius,
+                blurRadius: 12,
+                owner,
+            }));
+
+        this._mainGlassHandles = [
+            make(this._roundActors, 31, 'cc-round'),
+            make(this._cardActors, 24, 'cc-card'),
+            make(this._footerActors, 13, 'cc-footer'),
+        ];
+    }
+
     _renderMain() {
         if (!this._ccRoot)
             return;
 
+        this._destroyMainGlassHandles();
         this._clearChildren(this._ccRoot);
         this._mainRefs = {};
         this._detailRefs = null;
@@ -1540,6 +1735,7 @@ export class TahoeControlCenter {
 
         this._syncMainView();
         this._animateIn(grid);
+        this._syncMainGlassHandles(grid);
     }
 
     _createBluetoothCircle() {
@@ -1812,6 +2008,7 @@ export class TahoeControlCenter {
         if (!this._ccRoot)
             return;
 
+        this._destroyMainGlassHandles();
         this._clearChildren(this._ccRoot);
         this._mainRefs = null;
         this._detailRefs = {};
@@ -1848,9 +2045,9 @@ export class TahoeControlCenter {
         }
     }
 
-    _buildWifiSheet({showBack = false} = {}) {
+    _buildWifiSheet({showBack = false, popup = false} = {}) {
         const refs = {};
-        const sheet = this._createSheet('tahoe-cc-sheet-wifi', 22);
+        const sheet = this._createSheet('tahoe-cc-sheet-wifi', 22, '', !popup);
 
         const header = createDetailHeader({
             title: 'Wi‑Fi',
@@ -2008,7 +2205,7 @@ export class TahoeControlCenter {
         const refs = {};
         const sheet = this._createSheet(popup
             ? 'tahoe-cc-sheet-sound-popup'
-            : 'tahoe-cc-sheet-sound', 22);
+            : 'tahoe-cc-sheet-sound', 22, '', !popup);
 
         if (showBack) {
             const header = createDetailHeader({
@@ -2141,7 +2338,7 @@ export class TahoeControlCenter {
             return;
 
         this._clearChildren(box);
-        const sheet = this._createSheet('tahoe-cc-sheet-battery', 22);
+        const sheet = this._createSheet('tahoe-cc-sheet-battery', 22, '', false);
 
         const battery = this._battery;
         if (!battery?.present) {
@@ -2247,7 +2444,7 @@ export class TahoeControlCenter {
             return;
 
         this._clearChildren(box);
-        const result = this._buildWifiSheet({showBack: false});
+        const result = this._buildWifiSheet({showBack: false, popup: true});
         box.add_child(result.sheet);
     }
 
@@ -2902,6 +3099,13 @@ export class TahoeControlCenter {
         this._batteryIcon = null;
         this._soundPanelIcon = null;
         this._wifiPanelIcon = null;
+
+        this._destroyAllGlassHandles();
+        if (this._glassUnsubscribe) {
+            this._glassUnsubscribe();
+            this._glassUnsubscribe = null;
+        }
+        this._glassEngine = null;
 
         for (const actor of [...this._glassActors]) {
             try {

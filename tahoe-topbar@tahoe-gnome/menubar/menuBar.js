@@ -70,6 +70,8 @@ import {
     readMenubar,
 } from './gtkMenus.js';
 
+import {glassLook} from '../liquidGlass.js';
+
 const SEPARATOR = {sep: true};
 
 const DESKTOP_APP_IDS = [
@@ -157,6 +159,8 @@ export class TahoeMenuBar {
 
         this._theme = this._extension?._theme ?? null;
         this._cssFile = null;
+        this._glassEngine = null;
+        this._glassUnsubscribe = null;
 
         this.actor = new St.BoxLayout({
             style_class: 'tahoe-menubar',
@@ -177,6 +181,9 @@ export class TahoeMenuBar {
         this._loadStylesheet();
         this._bindSettings();
         this._connectSignals();
+
+        this._glassUnsubscribe = this._extension?.onGlassEngineChanged?.(
+            engine => this._setGlassEngine(engine)) ?? null;
 
         this._applyVisibility();
         this._scheduleRebuild();
@@ -319,6 +326,57 @@ export class TahoeMenuBar {
         default:
             break;
         }
+    }
+
+    /* -------------------------------------------------------------- */
+    /* Cristal Liquid Glass                                            */
+    /* -------------------------------------------------------------- */
+
+    _setGlassEngine(engine) {
+        this._detachAllMenuGlass();
+        this._glassEngine = engine;
+        if (!engine || this._destroyed)
+            return;
+        for (const entry of this._titleButtons) {
+            if (entry.menu?.isOpen)
+                this._attachMenuGlass(entry);
+        }
+    }
+
+    updateGlass() {
+        if (!this._glassEngine)
+            return;
+        const look = glassLook(this._extension?._theme);
+        for (const entry of this._titleButtons) {
+            if (!entry.menu?.isOpen)
+                continue;
+            if (entry.glassHandle)
+                entry.glassHandle.update(look);
+            else
+                this._attachMenuGlass(entry);
+        }
+    }
+
+    _attachMenuGlass(entry) {
+        if (!this._glassEngine || !entry.menu?.box || entry.glassHandle)
+            return;
+
+        entry.glassHandle = this._glassEngine.attach(entry.menu.box,
+            glassLook(this._extension?._theme, {
+                cornerRadius: 14,
+                blurRadius: 12,
+                owner: 'menubar-menu',
+            }));
+    }
+
+    _detachMenuGlass(entry) {
+        entry.glassHandle?.destroy();
+        entry.glassHandle = null;
+    }
+
+    _detachAllMenuGlass() {
+        for (const entry of this._titleButtons)
+            this._detachMenuGlass(entry);
     }
 
     _applyVisibility() {
@@ -1246,6 +1304,20 @@ export class TahoeMenuBar {
         for (const entry of this._titleButtons) {
             const menu = entry.button?.menu ?? null;
 
+            this._detachMenuGlass(entry);
+            if (menu) {
+                for (const id of [entry.openId, entry.closedId]) {
+                    if (!id)
+                        continue;
+                    try {
+                        menu.disconnect(id);
+                    } catch {
+                        // Menú ya destruido.
+                    }
+                }
+                entry.openId = entry.closedId = 0;
+            }
+
             try {
                 if (menu?.isOpen)
                     menu.close(PopupMenu.PopupAnimation.NONE);
@@ -1326,13 +1398,23 @@ export class TahoeMenuBar {
 
         this.actor.add_child(button.container);
 
-        this._titleButtons.push({
+        const entry = {
             key: menuDef.key,
             title: menuDef.title,
             isApp: menuDef.isApp,
             button,
             menu: button.menu,
+            glassHandle: null,
+            openId: 0,
+            closedId: 0,
+        };
+        entry.openId = button.menu.connect('open-state-changed', (_menu, open) => {
+            if (open)
+                this._attachMenuGlass(entry);
         });
+        entry.closedId = button.menu.connect('menu-closed',
+            () => this._detachMenuGlass(entry));
+        this._titleButtons.push(entry);
     }
 
     _populateMenu(menu, items) {
@@ -1490,6 +1572,13 @@ export class TahoeMenuBar {
     }
 
     _teardown(destroyActor) {
+        this._detachAllMenuGlass();
+        if (this._glassUnsubscribe) {
+            this._glassUnsubscribe();
+            this._glassUnsubscribe = null;
+        }
+        this._glassEngine = null;
+
         if (this._rebuildId) {
             try {
                 GLib.source_remove(this._rebuildId);

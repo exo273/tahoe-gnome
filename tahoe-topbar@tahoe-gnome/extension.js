@@ -15,8 +15,16 @@ import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 import {TahoeMenuBar} from './menubar/menuBar.js';
 import {attachUpdatesBadge} from './menubar/updates.js';
 import {TahoeControlCenter} from './controlCenter/controlCenter.js';
-import {LiquidGlassEngine} from './liquidGlass.js';
+import {LiquidGlassEngine, glassLook, stageRect} from './liquidGlass.js';
 import {TahoeTheme} from './theme.js';
+
+const GLASS_CLASSES = [
+    'tahoe-glass-liquid',
+    'tahoe-glass-blur',
+    'tahoe-glass-none',
+];
+const PANEL_GLASS_MARGIN = 4;
+const PANEL_GLASS_ISLAND_PADDING = 8;
 
 const APPLE_ROLE = 'tahoeAppleMenu';
 const BACKGROUND_SCHEMA = 'org.gnome.desktop.background';
@@ -97,7 +105,12 @@ export default class TahoeTopBarExtension extends Extension {
         this._backgroundSettings = null;
         this._menuBar = null;
         this._controlCenter = null;
-        this._liquidGlass = null;
+        this._glassEngine = null;
+        this._glassListeners = new Set();
+        this._glassStyle = 'liquid';
+        this._appleGlassHandle = null;
+        this._panelGlassHandle = null;
+        this._panelGlassKey = '';
 
         this._wallpaperCache = new Map();
         this._wallpaperKey = '';
@@ -111,6 +124,10 @@ export default class TahoeTopBarExtension extends Extension {
         // módulos leen extension._theme y las clases viven en uiGroup.
         this._theme = new TahoeTheme(this);
         this._themeId = this._theme.connect(() => this._onThemeChanged());
+
+        this._glassStyle = this._settings.get_string('glass-style');
+        this._applyGlassClasses();
+        this._syncGlassEngine();
 
         try {
             this._backgroundSettings = new Gio.Settings({
@@ -134,16 +151,11 @@ export default class TahoeTopBarExtension extends Extension {
         this._updateLogo();
         this._updateSolidState();
 
-        this._liquidGlass = new LiquidGlassEngine(this);
-
         this._connect(this._settings, 'changed', (_settings, key) => this._onSettingsChanged(key));
     }
 
     disable() {
-        if (this._liquidGlass) {
-            this._liquidGlass.destroy();
-            this._liquidGlass = null;
-        }
+        this._destroyGlass();
 
         if (this._solidIdleId) {
             GLib.source_remove(this._solidIdleId);
@@ -245,9 +257,13 @@ export default class TahoeTopBarExtension extends Extension {
         this._buildMenu();
 
         this._appleButton.menu.connect('open-state-changed', (_menu, isOpen) => {
-            if (isOpen)
+            if (isOpen) {
                 this._rebuildRecent();
+                this._attachAppleGlass();
+            }
         });
+        this._appleButton.menu.connect('menu-closed',
+            () => this._destroyAppleGlass());
     }
 
     _buildMenuBar() {
@@ -899,6 +915,221 @@ export default class TahoeTopBarExtension extends Extension {
     }
 
     // ------------------------------------------------------------------
+    // Cristal Liquid Glass
+    // ------------------------------------------------------------------
+
+    /**
+     * Los módulos que dibujan cristal se suscriben aquí. El callback se llama
+     * ya con el motor actual (o null) y cada vez que aparece o desaparece.
+     * Devuelve la función para darse de baja.
+     */
+    onGlassEngineChanged(callback) {
+        this._glassListeners.add(callback);
+        callback(this._glassEngine);
+        return () => this._glassListeners.delete(callback);
+    }
+
+    _setGlassEngine(engine) {
+        this._glassEngine = engine;
+        for (const callback of [...this._glassListeners]) {
+            try {
+                callback(engine);
+            } catch (e) {
+                console.error('[tahoe-topbar] Error en un listener de cristal:', e);
+            }
+        }
+    }
+
+    _syncGlassEngine() {
+        const wanted = this._glassStyle === 'liquid';
+
+        if (wanted && !this._glassEngine) {
+            try {
+                this._setGlassEngine(new LiquidGlassEngine(this));
+            } catch (e) {
+                console.error('[tahoe-topbar] No se pudo crear el motor de cristal:', e);
+                this._setGlassEngine(null);
+            }
+        } else if (!wanted && this._glassEngine) {
+            const engine = this._glassEngine;
+            // Los módulos sueltan sus handles antes de destruir el motor.
+            this._setGlassEngine(null);
+            engine.destroy();
+        }
+
+        this._syncAppleGlass();
+        this._syncPanelGlass();
+    }
+
+    _destroyGlass() {
+        this._destroyAppleGlass();
+        this._destroyPanelGlass();
+
+        const engine = this._glassEngine;
+        this._setGlassEngine(null);
+        if (engine) {
+            try {
+                engine.destroy();
+            } catch (e) {
+                console.error('[tahoe-topbar] Error al destruir el motor de cristal:', e);
+            }
+        }
+        this._glassListeners.clear();
+        this._removeGlassClasses();
+    }
+
+    _applyGlassClasses() {
+        const group = Main.uiGroup;
+        if (!group)
+            return;
+
+        for (const name of GLASS_CLASSES)
+            group.remove_style_class_name(name);
+        group.add_style_class_name(`tahoe-glass-${this._glassStyle}`);
+    }
+
+    _removeGlassClasses() {
+        if (!Main.uiGroup)
+            return;
+        for (const name of GLASS_CLASSES)
+            Main.uiGroup.remove_style_class_name(name);
+    }
+
+    _applyGlassStyle() {
+        if (!this._settings)
+            return;
+
+        this._glassStyle = this._settings.get_string('glass-style');
+        this._applyGlassClasses();
+        this._syncGlassEngine();
+        this._applyPanelAppearance();
+    }
+
+    _updateGlassTheme() {
+        const look = glassLook(this._theme);
+        this._appleGlassHandle?.update(look);
+        this._panelGlassHandle?.update(look);
+        this._menuBar?.updateGlass();
+    }
+
+    _attachAppleGlass() {
+        if (!this._glassEngine || this._appleGlassHandle)
+            return;
+
+        const box = this._appleButton?.menu?.box;
+        if (!box)
+            return;
+
+        this._appleGlassHandle = this._glassEngine.attach(box, glassLook(this._theme, {
+            cornerRadius: 14,
+            blurRadius: 12,
+            owner: 'apple-menu',
+        }));
+    }
+
+    _destroyAppleGlass() {
+        this._appleGlassHandle?.destroy();
+        this._appleGlassHandle = null;
+    }
+
+    _syncAppleGlass() {
+        this._destroyAppleGlass();
+        if (this._appleButton?.menu?.isOpen)
+            this._attachAppleGlass();
+    }
+
+    _panelGlassEnabled() {
+        return this._glassStyle === 'liquid' &&
+            Boolean(this._glassEngine) &&
+            !this._solidForced &&
+            Main.sessionMode.currentMode === 'user' &&
+            this._settings?.get_string('panel-glass') !== 'off';
+    }
+
+    _panelGlassRects() {
+        const panelBox = Main.layoutManager.panelBox;
+        if (!panelBox)
+            return [];
+
+        const [x, y, width, height] = stageRect(panelBox);
+        if (!(width > 0) || !(height > 0))
+            return [];
+
+        const margin = PANEL_GLASS_MARGIN;
+        const top = y + margin;
+        const pillHeight = Math.max(1, height - margin * 2);
+        const mode = this._settings.get_string('panel-glass');
+
+        if (mode === 'pill')
+            return [[x + margin, top, Math.max(1, width - margin * 2), pillHeight]];
+
+        const pad = PANEL_GLASS_ISLAND_PADDING;
+        const sections = [
+            Main.panel._leftBox,
+            Main.panel._centerBin ?? Main.panel._centerBox,
+            Main.panel._rightBox,
+        ];
+        const rects = [];
+        for (const section of sections) {
+            if (!section || !section.visible)
+                continue;
+            const [sx, , sw] = stageRect(section);
+            if (!(sw > 0))
+                continue;
+            const left = Math.max(x + margin, sx - pad);
+            const right = Math.min(x + width - margin, sx + sw + pad);
+            if (right > left)
+                rects.push([left, top, right - left, pillHeight]);
+        }
+        return rects;
+    }
+
+    /**
+     * Con panel-glass = pill o islands el cristal del panel es el fondo: la
+     * barra se deja transparente aunque panel-style pida otro material. Con
+     * una ventana maximizada (solid-forced) se apaga el cristal y manda el
+     * fondo sólido, que es lo que el usuario pidió para ese caso.
+     */
+    _syncPanelGlass() {
+        if (!this._panelGlassEnabled()) {
+            this._destroyPanelGlass();
+            return;
+        }
+
+        const panelBox = Main.layoutManager.panelBox;
+        if (!panelBox)
+            return;
+
+        const [, , , height] = stageRect(panelBox);
+        const radius = Math.max(4, (height - PANEL_GLASS_MARGIN * 2) / 2);
+        const mode = this._settings.get_string('panel-glass');
+        const key = `${mode}|${radius.toFixed(1)}|${this._theme?.isDark ? 'dark' : 'light'}`;
+        if (this._panelGlassHandle && key === this._panelGlassKey) {
+            this._panelGlassHandle.update(glassLook(this._theme));
+            return;
+        }
+
+        this._destroyPanelGlass();
+        this._panelGlassKey = key;
+        this._panelGlassHandle = this._glassEngine.attachRegions(
+            Main.panel,
+            () => this._panelGlassRects(),
+            glassLook(this._theme, {
+                cornerRadius: radius,
+                blurRadius: 10,
+                owner: `panel-${mode}`,
+            }));
+    }
+
+    _destroyPanelGlass() {
+        if (this._panelGlassHandle) {
+            this._panelGlassHandle.destroy();
+            this._panelGlassHandle = null;
+        }
+        this._panelGlassKey = '';
+    }
+
+    // ------------------------------------------------------------------
     // Estilo del panel
     // ------------------------------------------------------------------
 
@@ -908,6 +1139,7 @@ export default class TahoeTopBarExtension extends Extension {
 
         // El CSS se actualiza solo con las clases de uiGroup; el panel tiene
         // color inline y el contraste del fondo se recalcula aquí.
+        this._updateGlassTheme();
         this._applyPanelAppearance();
     }
 
@@ -1203,7 +1435,10 @@ export default class TahoeTopBarExtension extends Extension {
             : '"SF Pro Text", "SF Pro Display", Inter, Cantarell, sans-serif';
 
         let background;
-        if (this._solidForced || style === 'solid') {
+        if (this._panelGlassEnabled()) {
+            // El cristal del panel es el fondo.
+            background = 'rgba(0, 0, 0, 0)';
+        } else if (this._solidForced || style === 'solid') {
             background = darkMode
                 ? 'rgba(30, 30, 30, 0.85)'
                 : 'rgba(246, 246, 246, 0.85)';
@@ -1227,6 +1462,8 @@ export default class TahoeTopBarExtension extends Extension {
             'box-shadow: none',
             'border: none',
         ].join('; ') + ';';
+
+        this._syncPanelGlass();
     }
 
     _clearPanelStyle() {
@@ -1385,6 +1622,8 @@ export default class TahoeTopBarExtension extends Extension {
 
         if (!isUser) {
             this._destroyControlCenter();
+            this._destroyPanelGlass();
+            this._destroyAppleGlass();
             this._clearPanelStyle();
             return;
         }
@@ -1426,6 +1665,12 @@ export default class TahoeTopBarExtension extends Extension {
             break;
         case 'control-center-enabled':
             this._applyControlCenter();
+            break;
+        case 'glass-style':
+            this._applyGlassStyle();
+            break;
+        case 'panel-glass':
+            this._applyPanelAppearance();
             break;
         case 'move-clock-right':
         case 'clock-format':

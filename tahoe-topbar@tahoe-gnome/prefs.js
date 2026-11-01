@@ -56,6 +56,41 @@ const TEXT_COLORS = [
     {value: 'dark', label: 'Oscuro'},
 ];
 
+const GLASS_STYLES = [
+    {value: 'liquid', label: 'Liquid Glass (refracción)'},
+    {value: 'blur', label: 'Desenfoque simple'},
+    {value: 'none', label: 'Sin efecto'},
+];
+
+const PANEL_GLASS = [
+    {value: 'off', label: 'Desactivado'},
+    {value: 'pill', label: 'Píldora'},
+    {value: 'islands', label: 'Islas'},
+];
+
+const BLUR_METHODS = [
+    {value: 0, label: 'Gaussiano (recomendado)'},
+    {value: 1, label: 'Dual Kawase (rendimiento)'},
+];
+
+const BLUR_DOWNSCALE = [
+    {value: 2, label: 'Calidad (media resolución)'},
+    {value: 4, label: 'Rendimiento (cuarta parte)'},
+];
+
+const GLASS_TUNING_KEYS = [
+    'glass-displacement-scale',
+    'glass-rim-intensity',
+    'glass-rim-width',
+    'glass-chroma-strength',
+    'glass-light-angle-deg',
+    'shadow-intensity',
+    'blur-method',
+    'glass-blur-downscale',
+];
+
+const LIQUID_GLASS_URL = 'https://github.com/ryohsuke1231/liquid-glass';
+
 const ABOUT_TEXT_FIELDS = [
     {
         key: 'about-title',
@@ -108,6 +143,7 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         window.set_default_size(680, 760);
 
         window.add(this._buildBarPage(window, settings));
+        window.add(this._buildGlassPage(window, settings));
         window.add(this._buildAboutMacPage(window, settings));
         window.add(this._buildAboutPage(window, settings));
     }
@@ -205,6 +241,85 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
 
         settings.connect(`changed::${key}`, syncFromSettings);
         syncFromSettings();
+
+        return row;
+    }
+
+    _intComboRow(settings, key, title, choices, subtitle = null) {
+        const model = Gtk.StringList.new(choices.map(choice => _(choice.label)));
+        const row = new Adw.ComboRow({title, subtitle, model});
+
+        let syncing = false;
+
+        const syncFromSettings = () => {
+            const value = settings.get_int(key);
+            let index = choices.findIndex(choice => choice.value === value);
+            if (index < 0)
+                index = 0;
+
+            syncing = true;
+            row.set_selected(index);
+            syncing = false;
+        };
+
+        row.connect('notify::selected', () => {
+            if (syncing)
+                return;
+
+            const choice = choices[row.get_selected()];
+            if (choice)
+                settings.set_int(key, choice.value);
+        });
+
+        settings.connect(`changed::${key}`, syncFromSettings);
+        syncFromSettings();
+
+        return row;
+    }
+
+    _doubleSpinRow(settings, key, title, subtitle, lower, upper, step, digits = 2) {
+        const adjustment = new Gtk.Adjustment({
+            lower,
+            upper,
+            step_increment: step,
+            page_increment: step * 10,
+            value: settings.get_double(key),
+        });
+
+        const row = new Adw.SpinRow({
+            title,
+            subtitle,
+            adjustment,
+            digits,
+        });
+
+        settings.bind(key, row, 'value', Gio.SettingsBindFlags.DEFAULT);
+        return row;
+    }
+
+    _openUri(window, uri) {
+        const launcher = new Gtk.UriLauncher({uri});
+        launcher.launch(window, null, (obj, result) => {
+            try {
+                obj.launch_finish(result);
+            } catch (e) {
+                logError(e, 'No se pudo abrir el enlace');
+            }
+        });
+    }
+
+    _glassCreditsRow(window) {
+        const row = new Adw.ActionRow({
+            title: _('Motor Liquid Glass'),
+            subtitle: _('Ryosuke Watanabe (ryohsuke1231) — MIT'),
+        });
+
+        const button = new Gtk.Button({
+            label: _('Abrir'),
+            valign: Gtk.Align.CENTER,
+        });
+        button.connect('clicked', () => this._openUri(window, LIQUID_GLASS_URL));
+        row.add_suffix(button);
 
         return row;
     }
@@ -637,17 +752,11 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
             'control-center-show-sound-icon',
             _('Icono de sonido en la barra'),
             _('Volumen y selección de salida con un clic; la rueda cambia el volumen.'));
-        const blur = this._switchRow(
-            settings,
-            'control-center-blur',
-            _('Desenfoque Liquid Glass'),
-            _('Desenfoca el fondo detrás de los módulos. Desactívalo si notas lentitud.'));
         group.add(battery);
         group.add(sound);
         group.add(media);
-        group.add(blur);
 
-        for (const row of [battery, sound, media, blur]) {
+        for (const row of [battery, sound, media]) {
             settings.bind('control-center-enabled', row, 'sensitive',
                 Gio.SettingsBindFlags.GET);
         }
@@ -697,6 +806,127 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         updateClockPreview();
 
         return group;
+    }
+
+    // ------------------------------------------------------------------
+    // Página «Cristal»
+    // ------------------------------------------------------------------
+
+    _buildGlassPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: _('Cristal'),
+            icon_name: 'weather-clear-symbolic',
+        });
+
+        const styleGroup = new Adw.PreferencesGroup({
+            title: _('Material'),
+            description: _('Liquid Glass usa el motor con refracción; el desenfoque simple usa el efecto de GNOME Shell; sin efecto deja sólo el fondo translúcido.'),
+        });
+
+        styleGroup.add(this._stringComboRow(
+            settings,
+            'glass-style',
+            _('Estilo del cristal'),
+            GLASS_STYLES,
+            _('Se aplica al Centro de control, los menús y la ventana Acerca de.')));
+
+        styleGroup.add(this._stringComboRow(
+            settings,
+            'panel-glass',
+            _('Cristal de la barra superior'),
+            PANEL_GLASS,
+            _('Sólo con Liquid Glass: píldora flotante o islas detrás de los grupos de botones.')));
+
+        page.add(styleGroup);
+
+        const tuning = new Adw.PreferencesGroup({
+            title: _('Ajustes de Liquid Glass'),
+            description: _('Sólo se aplican al estilo Liquid Glass. Los cambios se ven en vivo.'),
+        });
+
+        tuning.add(this._doubleSpinRow(
+            settings,
+            'glass-displacement-scale',
+            _('Refracción'),
+            _('Fuerza de la distorsión del fondo. En Tahoe es sutil.'),
+            0, 30, 0.5, 1));
+
+        tuning.add(this._doubleSpinRow(
+            settings,
+            'glass-rim-intensity',
+            _('Brillo del borde'),
+            _('Intensidad de la luz del borde iluminado.'),
+            0, 2, 0.05, 2));
+
+        tuning.add(this._doubleSpinRow(
+            settings,
+            'glass-rim-width',
+            _('Grosor del borde'),
+            _('Ancho de la banda de luz junto al borde.'),
+            0, 8, 0.1, 1));
+
+        tuning.add(this._doubleSpinRow(
+            settings,
+            'glass-chroma-strength',
+            _('Aberración cromática'),
+            _('Separación de colores en la refracción (0 = sin separación).'),
+            0, 1, 0.05, 2));
+
+        tuning.add(this._doubleSpinRow(
+            settings,
+            'glass-light-angle-deg',
+            _('Ángulo de la luz'),
+            _('Dirección de la fuente de luz virtual, en grados.'),
+            0, 360, 5, 0));
+
+        tuning.add(this._doubleSpinRow(
+            settings,
+            'shadow-intensity',
+            _('Sombra'),
+            _('Oscuridad de la sombra bajo el cristal (0 = sin sombra).'),
+            0, 1, 0.01, 2));
+
+        tuning.add(this._intComboRow(
+            settings,
+            'blur-method',
+            _('Método de desenfoque'),
+            BLUR_METHODS));
+
+        tuning.add(this._intComboRow(
+            settings,
+            'glass-blur-downscale',
+            _('Calidad del desenfoque'),
+            BLUR_DOWNSCALE));
+
+        const resetRow = new Adw.ActionRow({
+            title: _('Restablecer valores de cristal'),
+            subtitle: _('Vuelve a los valores del motor; no cambia el estilo elegido.'),
+        });
+        const resetButton = new Gtk.Button({
+            label: _('Restablecer'),
+            valign: Gtk.Align.CENTER,
+        });
+        resetButton.connect('clicked', () => {
+            for (const key of GLASS_TUNING_KEYS)
+                settings.reset(key);
+        });
+        resetRow.add_suffix(resetButton);
+        tuning.add(resetRow);
+
+        const syncTuning = () => {
+            tuning.set_sensitive(
+                settings.get_string('glass-style') === 'liquid');
+        };
+        settings.connect('changed::glass-style', syncTuning);
+        syncTuning();
+
+        page.add(tuning);
+
+        const credits = new Adw.PreferencesGroup({title: _('Créditos')});
+        credits.add(this._glassCreditsRow(window));
+        page.add(credits);
+
+        return page;
     }
 
     // ------------------------------------------------------------------
@@ -858,6 +1088,10 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         group.add(resetRow);
 
         page.add(group);
+
+        const creditsGroup = new Adw.PreferencesGroup({title: _('Créditos')});
+        creditsGroup.add(this._glassCreditsRow(window));
+        page.add(creditsGroup);
 
         return page;
     }

@@ -1007,3 +1007,44 @@
 .tahoe-cc-sheet-sound .tahoe-cc-scroll-holder {
     margin: 2px 0;
 }
+
+/* --------------------------------------------------------------------------
+   Liquid Glass: el motor dibuja el fondo, el CSS deja sólo un tinte mínimo.
+   Los toggles activos conservan su relleno opaco (acento/blanco).
+   -------------------------------------------------------------------------- */
+
+.tahoe-glass-liquid .tahoe-cc-glass {
+    background-color: transparent !important;
+    background-gradient-start: transparent !important;
+    background-gradient-end: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.tahoe-theme-dark.tahoe-glass-liquid .tahoe-cc-glass {
+    background-color: transparent !important;
+    background-gradient-start: transparent !important;
+    background-gradient-end: transparent !important;
+}
+
+/* El cristal de los popovers va detrás del contenido del menú. */
+.tahoe-glass-liquid .tahoe-cc-popover .popup-menu-content {
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.tahoe-glass-liquid .tahoe-cc-sheet {
+    background-color: transparent !important;
+    background-gradient-start: transparent !important;
+    background-gradient-end: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.tahoe-theme-dark.tahoe-glass-liquid .tahoe-cc-sheet {
+    background-color: transparent !important;
+    background-gradient-start: transparent !important;
+    background-gradient-end: transparent !important;
+}
