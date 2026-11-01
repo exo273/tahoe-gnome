@@ -1,0 +1,707 @@
+/* ==========================================================================
+   Tahoe Top Bar — Centro de control (macOS Tahoe / macOS 26)
+
+   Todos los selectores están limitados a los botones y menús propios del
+   módulo (.tahoe-cc-*), para no alterar otros menús de GNOME Shell.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Botones de la barra
+   -------------------------------------------------------------------------- */
+
+#panel.tahoe-panel .tahoe-cc-panel-button {
+    padding: 0 7px;
+    -natural-hpadding: 7px;
+    -minimum-hpadding: 4px;
+}
+
+#panel.tahoe-panel .tahoe-cc-panel-icon,
+#panel.tahoe-panel .tahoe-cc-battery-label {
+    color: inherit;
+}
+
+#panel.tahoe-panel .tahoe-cc-battery-box {
+    spacing: 4px;
+}
+
+#panel.tahoe-panel .tahoe-cc-battery-label {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+#panel.tahoe-panel .tahoe-cc-glyph {
+    spacing: 2px;
+}
+
+#panel.tahoe-panel .tahoe-cc-glyph-pill {
+    width: 18px;
+    height: 7px;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.92);
+}
+
+#panel.tahoe-panel .tahoe-cc-glyph-knob {
+    width: 5px;
+    height: 5px;
+    border-radius: 3px;
+    margin: 1px 2px;
+    background-color: rgba(20, 20, 22, 0.94);
+}
+
+#panel.tahoe-panel.tahoe-text-light .tahoe-cc-glyph-pill {
+    background-color: rgba(255, 255, 255, 0.92);
+}
+
+#panel.tahoe-panel.tahoe-text-light .tahoe-cc-glyph-knob {
+    background-color: rgba(20, 20, 22, 0.94);
+}
+
+#panel.tahoe-panel.tahoe-text-dark .tahoe-cc-glyph-pill {
+    background-color: rgba(0, 0, 0, 0.82);
+}
+
+#panel.tahoe-panel.tahoe-text-dark .tahoe-cc-glyph-knob {
+    background-color: rgba(255, 255, 255, 0.95);
+}
+
+/* --------------------------------------------------------------------------
+   Contenedor de los menús (Liquid Glass)
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu {
+    -arrow-base: 0;
+    -arrow-rise: 6px;
+    -arrow-border-width: 0;
+    -arrow-border-radius: 0;
+    -boxpointer-gap: 6px;
+    font-family: SF Pro Text, Inter, Cantarell, sans-serif;
+}
+
+/* El tema (MacTahoe) añade margen y un gap distinto a los menús de panel. */
+.popup-menu.panel-menu.tahoe-cc-menu {
+    -boxpointer-gap: 6px;
+    margin-bottom: 0;
+}
+
+.tahoe-cc-menu .popup-menu-content {
+    background-color: rgba(30, 30, 32, 0.55);
+    background-image: none;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 26px;
+    box-shadow: 0 14px 44px 0 rgba(0, 0, 0, 0.48);
+    padding: 12px;
+    margin: 0;
+    width: 314px;
+    color: #ffffff;
+    font-family: SF Pro Text, Inter, Cantarell, sans-serif;
+}
+
+.tahoe-cc-popover .popup-menu-content {
+    width: 262px;
+    border-radius: 22px;
+    padding: 12px;
+}
+
+.tahoe-cc-menu .tahoe-cc-root {
+    spacing: 10px;
+    width: 314px;
+}
+
+.tahoe-cc-menu .tahoe-cc-popover-inner {
+    spacing: 8px;
+    width: 238px;
+}
+
+/* Tema claro */
+.tahoe-cc-menu.tahoe-cc-light .popup-menu-content {
+    background-color: rgba(246, 246, 246, 0.70);
+    border-color: rgba(0, 0, 0, 0.10);
+    box-shadow: 0 14px 44px 0 rgba(0, 0, 0, 0.22);
+    color: #1d1d1f;
+}
+
+/* --------------------------------------------------------------------------
+   Tarjetas
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-card {
+    background-color: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 12px;
+    spacing: 6px;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-card {
+    background-color: rgba(255, 255, 255, 0.60);
+    border-color: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
+}
+
+.tahoe-cc-menu .tahoe-cc-grid {
+    spacing: 10px;
+}
+
+.tahoe-cc-menu .tahoe-cc-right-column {
+    spacing: 10px;
+}
+
+.tahoe-cc-menu .tahoe-cc-connectivity {
+    spacing: 8px;
+}
+
+.tahoe-cc-menu .tahoe-cc-focus-card {
+    spacing: 0;
+    padding: 10px;
+}
+
+.tahoe-cc-menu .tahoe-cc-focus-card .tahoe-cc-row {
+    spacing: 7px;
+}
+
+.tahoe-cc-menu .tahoe-cc-focus-card .tahoe-cc-title {
+    font-size: 12px;
+}
+
+.tahoe-cc-menu .tahoe-cc-tiles {
+    spacing: 10px;
+}
+
+.tahoe-cc-menu .tahoe-cc-tile {
+    spacing: 6px;
+    padding: 8px;
+    y-align: center;
+}
+
+.tahoe-cc-menu .tahoe-cc-slider-card {
+    spacing: 6px;
+}
+
+.tahoe-cc-menu .tahoe-cc-actions {
+    spacing: 4px;
+    padding: 12px 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Tipografía
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu .tahoe-cc-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu .tahoe-cc-subtitle {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.60);
+}
+
+.tahoe-cc-menu .tahoe-cc-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.52);
+    margin: 2px 2px 0 2px;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-title,
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-card-title {
+    color: #1d1d1f;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-subtitle {
+    color: rgba(29, 29, 31, 0.55);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-section-label {
+    color: rgba(29, 29, 31, 0.48);
+}
+
+/* --------------------------------------------------------------------------
+   Filas de módulos
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-row {
+    spacing: 9px;
+}
+
+.tahoe-cc-menu .tahoe-cc-row-text {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+    spacing: 0;
+    color: inherit;
+}
+
+.tahoe-cc-menu .tahoe-cc-row-text:hover {
+    background-color: transparent;
+}
+
+.tahoe-cc-menu .tahoe-cc-row-labels {
+    spacing: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Botones circulares
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-circle {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    border-radius: 17px;
+    background-color: rgba(255, 255, 255, 0.16);
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+    color: #ffffff;
+    transition-duration: 120ms;
+}
+
+.tahoe-cc-menu .tahoe-cc-circle:hover {
+    background-color: rgba(255, 255, 255, 0.24);
+}
+
+.tahoe-cc-menu .tahoe-cc-circle:active {
+    background-color: rgba(255, 255, 255, 0.30);
+}
+
+.tahoe-cc-menu .tahoe-cc-circle-on,
+.tahoe-cc-menu .tahoe-cc-circle-on:hover {
+    background-color: #0a84ff;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu .tahoe-cc-circle-icon {
+    color: inherit;
+}
+
+.tahoe-cc-menu .tahoe-cc-small-circle {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    border-radius: 14px;
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.tahoe-cc-menu .tahoe-cc-small-circle:hover {
+    background-color: rgba(255, 255, 255, 0.20);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-circle {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: rgba(0, 0, 0, 0.74);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-circle:hover {
+    background-color: rgba(0, 0, 0, 0.14);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-circle-on,
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-circle-on:hover {
+    background-color: #0a84ff;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-small-circle {
+    background-color: rgba(0, 0, 0, 0.07);
+    color: rgba(0, 0, 0, 0.70);
+}
+
+/* --------------------------------------------------------------------------
+   Tarjetas pequeñas (Modo oscuro / Luz nocturna)
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-tile-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.86);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-tile-label {
+    color: rgba(29, 29, 31, 0.78);
+}
+
+/* --------------------------------------------------------------------------
+   Acciones inferiores
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-action {
+    spacing: 5px;
+}
+
+.tahoe-cc-menu .tahoe-cc-action-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.68);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-action-label {
+    color: rgba(29, 29, 31, 0.58);
+}
+
+/* --------------------------------------------------------------------------
+   Sliders gruesos estilo Tahoe
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-slider-wrap {
+    height: 28px;
+    x-align: fill;
+}
+
+.tahoe-cc-menu .tahoe-cc-slider {
+    height: 28px;
+    color: transparent;
+    border-radius: 14px;
+    -slider-handle-radius: 0px;
+    -barlevel-height: 28px;
+    -barlevel-border-width: 0px;
+    -barlevel-border-radius: 14px;
+    -barlevel-background-color: rgba(255, 255, 255, 0.18);
+    -barlevel-active-background-color: rgba(255, 255, 255, 0.94);
+    -barlevel-overdrive-color: rgba(255, 255, 255, 0.94);
+    -barlevel-overdrive-separator-width: 0px;
+}
+
+.tahoe-cc-menu .tahoe-cc-slider:hover {
+    -barlevel-active-background-color: rgba(255, 255, 255, 1);
+}
+
+.tahoe-cc-menu .tahoe-cc-slider-icon {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin-left: 9px;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    color: #1d1d1f;
+}
+
+.tahoe-cc-menu .tahoe-cc-slider-icon-image {
+    color: #1d1d1f;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-slider {
+    -barlevel-background-color: rgba(0, 0, 0, 0.12);
+    -barlevel-active-background-color: rgba(255, 255, 255, 0.98);
+    -barlevel-overdrive-color: rgba(255, 255, 255, 0.98);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-slider-icon,
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-slider-icon-image {
+    color: rgba(29, 29, 31, 0.70);
+}
+
+/* --------------------------------------------------------------------------
+   Reproduciendo
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-media-card {
+    spacing: 10px;
+    padding: 12px;
+}
+
+.tahoe-cc-menu .tahoe-cc-media-art {
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.12);
+    background-size: cover;
+}
+
+.tahoe-cc-menu .tahoe-cc-media-art-icon {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.tahoe-cc-menu .tahoe-cc-media-labels {
+    spacing: 1px;
+}
+
+.tahoe-cc-menu .tahoe-cc-media-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu .tahoe-cc-media-artist {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.60);
+}
+
+.tahoe-cc-menu .tahoe-cc-media-controls {
+    spacing: 2px;
+}
+
+.tahoe-cc-menu .tahoe-cc-media-button {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    min-height: 26px;
+    border-radius: 13px;
+    background-color: transparent;
+    padding: 0;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.tahoe-cc-menu .tahoe-cc-media-button:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-media-title {
+    color: #1d1d1f;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-media-artist {
+    color: rgba(29, 29, 31, 0.55);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-media-button {
+    color: rgba(29, 29, 31, 0.78);
+}
+
+/* --------------------------------------------------------------------------
+   Listas y vistas de detalle
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-detail-header {
+    spacing: 6px;
+    min-height: 30px;
+}
+
+.tahoe-cc-menu .tahoe-cc-back-button {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    border-radius: 14px;
+    background-color: rgba(255, 255, 255, 0.10);
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu .tahoe-cc-back-button:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+.tahoe-cc-menu .tahoe-cc-back-glyph {
+    font-size: 22px;
+    font-weight: 400;
+    color: inherit;
+    margin-bottom: 2px;
+}
+
+.tahoe-cc-menu .tahoe-cc-detail-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-detail-title {
+    color: #1d1d1f;
+}
+
+.tahoe-cc-menu .tahoe-cc-detail-card {
+    spacing: 6px;
+}
+
+.tahoe-cc-menu .tahoe-cc-list {
+    spacing: 1px;
+}
+
+.tahoe-cc-menu .tahoe-cc-list-row {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    padding: 6px 8px;
+    margin: 0;
+    border-radius: 11px;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu .tahoe-cc-list-row:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.tahoe-cc-menu .tahoe-cc-list-row-box {
+    spacing: 9px;
+}
+
+.tahoe-cc-menu .tahoe-cc-list-labels {
+    spacing: 0;
+}
+
+.tahoe-cc-menu .tahoe-cc-list-icon {
+    color: rgba(255, 255, 255, 0.86);
+}
+
+.tahoe-cc-menu .tahoe-cc-list-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu .tahoe-cc-list-suffix {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.tahoe-cc-menu .tahoe-cc-list-check {
+    color: #0a84ff;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-row {
+    color: #1d1d1f;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-row:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-title {
+    color: #1d1d1f;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-icon {
+    color: rgba(29, 29, 31, 0.72);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-list-suffix {
+    color: rgba(29, 29, 31, 0.42);
+}
+
+.tahoe-cc-menu .tahoe-cc-scroll {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+.tahoe-cc-menu .tahoe-cc-scroll StScrollBar {
+    padding: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Separadores y enlaces de pie
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-separator {
+    height: 1px;
+    min-height: 1px;
+    margin: 2px 2px;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-separator {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.tahoe-cc-menu .tahoe-cc-footer-link {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    padding: 3px 6px;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.tahoe-cc-menu .tahoe-cc-footer-link:hover {
+    background-color: transparent;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.tahoe-cc-menu .tahoe-cc-footer-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: inherit;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-footer-link {
+    color: rgba(29, 29, 31, 0.42);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-footer-link:hover {
+    color: rgba(29, 29, 31, 0.68);
+}
+
+/* --------------------------------------------------------------------------
+   Menú de batería
+   -------------------------------------------------------------------------- */
+
+.tahoe-cc-menu .tahoe-cc-popover-header {
+    spacing: 10px;
+    padding: 2px 2px 4px 2px;
+}
+
+.tahoe-cc-menu .tahoe-cc-popover-header-labels {
+    spacing: 1px;
+}
+
+.tahoe-cc-menu .tahoe-cc-popover-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu .tahoe-cc-popover-header-icon {
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.tahoe-cc-menu .tahoe-cc-battery-percentage {
+    font-size: 20px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-popover-title,
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-battery-percentage {
+    color: #1d1d1f;
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-popover-header-icon {
+    color: rgba(29, 29, 31, 0.78);
+}
+
+.tahoe-cc-menu .tahoe-cc-info-row {
+    spacing: 10px;
+    padding: 3px 2px;
+}
+
+.tahoe-cc-menu .tahoe-cc-info-key {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.58);
+}
+
+.tahoe-cc-menu .tahoe-cc-info-value {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-info-key {
+    color: rgba(29, 29, 31, 0.52);
+}
+
+.tahoe-cc-menu.tahoe-cc-light .tahoe-cc-info-value {
+    color: rgba(29, 29, 31, 0.85);
+}

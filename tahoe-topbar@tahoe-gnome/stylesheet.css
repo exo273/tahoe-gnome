@@ -1,0 +1,333 @@
+/* ==========================================================================
+   Tahoe Top Bar — macOS Tahoe inspired styling
+   Only selectors scoped to #panel.tahoe-panel / .tahoe-apple-menu are used,
+   so other GNOME Shell menus and panels keep their original appearance.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Panel container
+   -------------------------------------------------------------------------- */
+
+#panel.tahoe-panel {
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    border: none;
+    color: #ffffff;
+    font-weight: 500;
+}
+
+#panel.tahoe-panel.tahoe-transparent {
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    border: none;
+}
+
+#panel.tahoe-panel.tahoe-translucent {
+    background-image: none;
+}
+
+#panel.tahoe-panel.tahoe-solid.tahoe-text-light,
+#panel.tahoe-panel.tahoe-solid-forced.tahoe-text-light {
+    background-color: rgba(30, 30, 30, 0.85);
+}
+
+#panel.tahoe-panel.tahoe-solid.tahoe-text-dark,
+#panel.tahoe-panel.tahoe-solid-forced.tahoe-text-dark {
+    background-color: rgba(246, 246, 246, 0.85);
+}
+
+#panel.tahoe-panel.tahoe-text-light {
+    color: #ffffff;
+}
+
+#panel.tahoe-panel.tahoe-text-dark {
+    color: #1d1d1f;
+}
+
+/* Panel button labels and icons must follow the selected text color, because
+   the Yaru theme sets an explicit dark color on .panel-button. */
+#panel.tahoe-panel.tahoe-text-light .panel-button,
+#panel.tahoe-panel.tahoe-text-light .panel-button .clock,
+#panel.tahoe-panel.tahoe-text-light .panel-button .system-status-icon,
+#panel.tahoe-panel.tahoe-text-light .tahoe-app-name,
+#panel.tahoe-panel.tahoe-text-light .tahoe-fake-menu-button {
+    color: #ffffff;
+}
+
+#panel.tahoe-panel.tahoe-text-dark .panel-button,
+#panel.tahoe-panel.tahoe-text-dark .panel-button .clock,
+#panel.tahoe-panel.tahoe-text-dark .panel-button .system-status-icon,
+#panel.tahoe-panel.tahoe-text-dark .tahoe-app-name,
+#panel.tahoe-panel.tahoe-text-dark .tahoe-fake-menu-button {
+    color: #1d1d1f;
+}
+
+/* --------------------------------------------------------------------------
+   Panel buttons: compact macOS-like pills with a soft hover
+   -------------------------------------------------------------------------- */
+
+#panel.tahoe-panel #panelLeft,
+#panel.tahoe-panel #panelCenter {
+    spacing: 2px;
+}
+
+#panel.tahoe-panel #panelRight {
+    spacing: 4px;
+}
+
+#panel.tahoe-panel .panel-button {
+    border: none;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    border-radius: 999px;
+    margin: 2px 1px;
+    padding: 0 7px;
+    font-weight: 500;
+    color: inherit;
+    -natural-hpadding: 8px;
+    -minimum-hpadding: 4px;
+}
+
+#panel.tahoe-panel .panel-button:hover,
+#panel.tahoe-panel .panel-button:focus,
+#panel.tahoe-panel .panel-button:active,
+#panel.tahoe-panel .panel-button:checked {
+    background-color: rgba(255, 255, 255, 0.18);
+    background-image: none;
+    box-shadow: none;
+    color: inherit;
+}
+
+#panel.tahoe-panel.tahoe-text-dark .panel-button:hover,
+#panel.tahoe-panel.tahoe-text-dark .panel-button:focus,
+#panel.tahoe-panel.tahoe-text-dark .panel-button:active,
+#panel.tahoe-panel.tahoe-text-dark .panel-button:checked {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: #1d1d1f;
+}
+
+/* The Yaru clock has !important background/shadow declarations; re-create the
+   hover pill on the clock button itself and silence the label's own shadow. */
+#panel.tahoe-panel .panel-button.clock-display {
+    border: none !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+#panel.tahoe-panel .panel-button.clock-display:hover,
+#panel.tahoe-panel .panel-button.clock-display:focus,
+#panel.tahoe-panel .panel-button.clock-display:active,
+#panel.tahoe-panel .panel-button.clock-display:checked {
+    background-color: rgba(255, 255, 255, 0.18) !important;
+    box-shadow: none !important;
+}
+
+#panel.tahoe-panel.tahoe-text-dark .panel-button.clock-display:hover,
+#panel.tahoe-panel.tahoe-text-dark .panel-button.clock-display:focus,
+#panel.tahoe-panel.tahoe-text-dark .panel-button.clock-display:active,
+#panel.tahoe-panel.tahoe-text-dark .panel-button.clock-display:checked {
+    background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+#panel.tahoe-panel .panel-button.clock-display .clock {
+    border: none !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+}
+
+/* Apple menu button */
+#panel.tahoe-panel .tahoe-apple-button {
+    padding: 0 10px;
+    margin: 2px 0;
+    -natural-hpadding: 10px;
+    -minimum-hpadding: 6px;
+}
+
+#panel.tahoe-panel .tahoe-apple-button .tahoe-logo,
+#panel.tahoe-panel .tahoe-apple-button .tahoe-logo-symbolic {
+    color: inherit;
+}
+
+#panel.tahoe-panel .tahoe-apple-button .tahoe-logo-fixed {
+    color: #bebebe;
+}
+
+/* Application name, immediately after the Apple logo */
+#panel.tahoe-panel .tahoe-left-extras {
+    spacing: 0;
+    margin: 0;
+}
+
+#panel.tahoe-panel .tahoe-app-name {
+    font-weight: 700;
+    padding: 0 6px;
+    color: inherit;
+}
+
+/* Decorative "File Edit View Window Help" menus */
+#panel.tahoe-panel .tahoe-fake-menus {
+    spacing: 0;
+}
+
+#panel.tahoe-panel .tahoe-fake-menu-button {
+    border: none;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin: 0 1px;
+    font-weight: 400;
+    color: inherit;
+}
+
+#panel.tahoe-panel .tahoe-fake-menu-button:hover,
+#panel.tahoe-panel .tahoe-fake-menu-button:focus {
+    background-color: rgba(255, 255, 255, 0.18);
+    box-shadow: none;
+    color: inherit;
+}
+
+#panel.tahoe-panel.tahoe-text-dark .tahoe-fake-menu-button:hover,
+#panel.tahoe-panel.tahoe-text-dark .tahoe-fake-menu-button:focus {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: #1d1d1f;
+}
+
+/* Quick settings / status icon spacing on the right */
+#panel.tahoe-panel .panel-status-indicators-box {
+    spacing: 8px;
+}
+
+#panel.tahoe-panel .panel-status-indicators-box > .system-status-icon {
+    padding: 0;
+    margin: 0;
+}
+
+#panel.tahoe-panel .panel-button .system-status-icon {
+    color: inherit;
+}
+
+/* --------------------------------------------------------------------------
+   Apple menu — "Liquid Glass" dark popup
+   -------------------------------------------------------------------------- */
+
+.tahoe-apple-menu {
+    -arrow-rise: 6px;
+}
+
+.tahoe-apple-menu .popup-menu-content {
+    background-color: rgba(40, 40, 40, 0.72);
+    background-image: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    box-shadow: 0 8px 28px 0 rgba(0, 0, 0, 0.45);
+    padding: 6px;
+    min-width: 260px;
+    color: #f5f5f7;
+}
+
+.tahoe-apple-menu .popup-menu-item {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    border-radius: 8px;
+    padding: 5px 10px;
+    margin: 1px 0;
+    spacing: 6px;
+    font-size: 13px;
+    font-weight: 400;
+    color: #f5f5f7;
+}
+
+.tahoe-apple-menu .popup-menu-item:hover,
+.tahoe-apple-menu .popup-menu-item:focus,
+.tahoe-apple-menu .popup-menu-item:selected,
+.tahoe-apple-menu .popup-menu-item:active,
+.tahoe-apple-menu .popup-menu-item:checked {
+    background-color: #0a84ff;
+    background-image: none;
+    box-shadow: none;
+    color: #ffffff;
+}
+
+.tahoe-apple-menu .popup-menu-item:active:hover,
+.tahoe-apple-menu .popup-menu-item:checked:hover {
+    background-color: #0a84ff;
+    color: #ffffff;
+}
+
+.tahoe-apple-menu .popup-menu-item:insensitive {
+    background-color: transparent;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.tahoe-apple-menu .tahoe-menu-shortcut {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    font-weight: 400;
+    padding-left: 18px;
+}
+
+.tahoe-apple-menu .popup-menu-item:hover .tahoe-menu-shortcut,
+.tahoe-apple-menu .popup-menu-item:focus .tahoe-menu-shortcut,
+.tahoe-apple-menu .popup-menu-item:active .tahoe-menu-shortcut,
+.tahoe-apple-menu .popup-menu-item:checked .tahoe-menu-shortcut {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* Subtle separators */
+.tahoe-apple-menu .popup-separator-menu-item {
+    padding: 0;
+    margin: 4px 10px;
+    border: none;
+    background-color: transparent;
+    background-image: none;
+}
+
+.tahoe-apple-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    background-image: none;
+}
+
+/* Recent items submenu */
+.tahoe-apple-menu .popup-sub-menu {
+    background-color: rgba(40, 40, 40, 0.92);
+    background-image: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    box-shadow: 0 6px 20px 0 rgba(0, 0, 0, 0.4);
+    padding: 4px;
+    margin: 2px 0;
+    color: #f5f5f7;
+}
+
+.tahoe-apple-menu .popup-sub-menu .popup-menu-item {
+    border-radius: 8px;
+    padding: 5px 10px;
+    margin: 1px 0;
+    color: #f5f5f7;
+}
+
+.tahoe-apple-menu .popup-sub-menu .popup-menu-item:hover,
+.tahoe-apple-menu .popup-sub-menu .popup-menu-item:focus,
+.tahoe-apple-menu .popup-sub-menu .popup-menu-item:selected,
+.tahoe-apple-menu .popup-sub-menu .popup-menu-item:active,
+.tahoe-apple-menu .popup-sub-menu .popup-menu-item:checked {
+    background-color: #0a84ff;
+    color: #ffffff;
+}
+
+.tahoe-apple-menu .popup-sub-menu .popup-menu-item:insensitive {
+    color: rgba(255, 255, 255, 0.4);
+    background-color: transparent;
+}
+
+.tahoe-apple-menu .popup-sub-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
+    background-color: rgba(255, 255, 255, 0.1);
+}

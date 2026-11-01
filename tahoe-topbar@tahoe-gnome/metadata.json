@@ -1,0 +1,9 @@
+{
+  "uuid": "tahoe-topbar@tahoe-gnome",
+  "name": "Tahoe Top Bar",
+  "description": "Barra superior al estilo macOS Tahoe: menú de manzana configurable, nombre de la app, reloj a la derecha y ventana 'Acerca de este Mac' con imagen personalizable.",
+  "version": 1,
+  "shell-version": ["48", "49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.tahoe-topbar",
+  "url": "https://github.com/tahoe-gnome/tahoe-topbar"
+}

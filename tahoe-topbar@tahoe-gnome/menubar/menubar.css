@@ -1,0 +1,242 @@
+/* ==========================================================================
+   Tahoe Top Bar — barra de menús dinámica
+   Todo va prefijado con .tahoe-menubar* para no tocar el resto del shell.
+   Se usa !important allí donde el tema MacTahoe-Dark ya usa !important.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Títulos en el panel: [nombre de app] [Archivo] [Edición] …
+   -------------------------------------------------------------------------- */
+
+#panel .tahoe-menubar,
+#panel.tahoe-panel .tahoe-menubar {
+    spacing: 1px;
+    margin: 0;
+    padding: 0;
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+}
+
+#panel .tahoe-menubar-title,
+#panel.tahoe-panel .tahoe-menubar-title {
+    border: none !important;
+    border-width: 0 !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    margin: 1px 0 !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    -natural-hpadding: 0px;
+    -minimum-hpadding: 0px;
+    transition-duration: 80ms;
+    color: inherit;
+}
+
+#panel .tahoe-menubar-title:hover,
+#panel .tahoe-menubar-title:focus,
+#panel .tahoe-menubar-title:active,
+#panel .tahoe-menubar-title:checked,
+#panel.tahoe-panel .tahoe-menubar-title:hover,
+#panel.tahoe-panel .tahoe-menubar-title:focus,
+#panel.tahoe-panel .tahoe-menubar-title:active,
+#panel.tahoe-panel .tahoe-menubar-title:checked {
+    background-color: rgba(255, 255, 255, 0.18) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: inherit !important;
+}
+
+#panel.tahoe-panel.tahoe-text-dark .tahoe-menubar-title:hover,
+#panel.tahoe-panel.tahoe-text-dark .tahoe-menubar-title:focus,
+#panel.tahoe-panel.tahoe-text-dark .tahoe-menubar-title:active,
+#panel.tahoe-panel.tahoe-text-dark .tahoe-menubar-title:checked {
+    background-color: rgba(0, 0, 0, 0.10) !important;
+}
+
+#panel .tahoe-menubar-title .tahoe-menubar-title-box,
+#panel.tahoe-panel .tahoe-menubar-title .tahoe-menubar-title-box {
+    padding: 2px 9px;
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+}
+
+#panel .tahoe-menubar-title .tahoe-menubar-label,
+#panel.tahoe-panel .tahoe-menubar-title .tahoe-menubar-label {
+    font-size: 13px;
+    font-weight: 400;
+    color: inherit;
+    padding: 0;
+    margin: 0;
+    text-shadow: none;
+}
+
+#panel .tahoe-menubar-title.tahoe-menubar-appname .tahoe-menubar-label,
+#panel.tahoe-panel .tahoe-menubar-title.tahoe-menubar-appname .tahoe-menubar-label {
+    font-weight: 700;
+}
+
+#panel.tahoe-panel.tahoe-text-light .tahoe-menubar-title .tahoe-menubar-label {
+    color: #ffffff;
+}
+
+#panel.tahoe-panel.tahoe-text-dark .tahoe-menubar-title .tahoe-menubar-label {
+    color: #1d1d1f;
+}
+
+/* --------------------------------------------------------------------------
+   Desplegables: Liquid Glass oscuro
+   -------------------------------------------------------------------------- */
+
+.tahoe-menubar-menu {
+    -arrow-rise: 6px;
+    -boxpointer-gap: 3px;
+}
+
+.tahoe-menubar-menu .popup-menu-content {
+    background-color: rgba(40, 40, 40, 0.75) !important;
+    background-image: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.45) !important;
+    padding: 5px !important;
+    min-width: 190px;
+    color: #f5f5f7 !important;
+}
+
+.tahoe-menubar-menu .popup-menu-item {
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    border-radius: 7px !important;
+    box-shadow: none !important;
+    padding: 5px 8px !important;
+    margin: 1px 0 !important;
+    spacing: 6px;
+    font-size: 13px;
+    font-weight: 400;
+    color: #f5f5f7 !important;
+    text-shadow: none !important;
+}
+
+.tahoe-menubar-menu .popup-menu-item:hover,
+.tahoe-menubar-menu .popup-menu-item:focus,
+.tahoe-menubar-menu .popup-menu-item:selected,
+.tahoe-menubar-menu .popup-menu-item:active,
+.tahoe-menubar-menu .popup-menu-item:checked {
+    background-color: #0a84ff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: #ffffff !important;
+}
+
+.tahoe-menubar-menu .popup-menu-item:checked {
+    border-radius: 7px !important;
+}
+
+.tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled,
+.tahoe-menubar-menu .popup-menu-item:insensitive {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled:hover,
+.tahoe-menubar-menu .popup-menu-item:insensitive:hover {
+    background-color: transparent !important;
+    color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled .tahoe-menubar-accel,
+.tahoe-menubar-menu .popup-menu-item:insensitive .tahoe-menubar-accel {
+    color: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Atajos de teclado alineados a la derecha */
+.tahoe-menubar-menu .tahoe-menubar-accel {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    font-weight: 400;
+    padding-left: 18px;
+}
+
+.tahoe-menubar-menu .popup-menu-item:hover .tahoe-menubar-accel,
+.tahoe-menubar-menu .popup-menu-item:focus .tahoe-menubar-accel,
+.tahoe-menubar-menu .popup-menu-item:selected .tahoe-menubar-accel,
+.tahoe-menubar-menu .popup-menu-item:active .tahoe-menubar-accel,
+.tahoe-menubar-menu .popup-menu-item:checked .tahoe-menubar-accel {
+    color: rgba(255, 255, 255, 0.88);
+}
+
+/* Separadores finos */
+.tahoe-menubar-menu .popup-separator-menu-item {
+    padding: 0 !important;
+    margin: 4px 8px !important;
+    border: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    min-height: 0;
+}
+
+.tahoe-menubar-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.18) !important;
+    background-image: none !important;
+}
+
+/* Ornamento (✓ de «Siempre encima», ventana activa…) */
+.tahoe-menubar-menu .popup-menu-ornament {
+    width: 14px;
+    icon-size: 12px;
+    color: #f5f5f7;
+}
+
+.tahoe-menubar-menu .popup-menu-item:hover .popup-menu-ornament,
+.tahoe-menubar-menu .popup-menu-item:focus .popup-menu-ornament,
+.tahoe-menubar-menu .popup-menu-item:selected .popup-menu-ornament {
+    color: #ffffff;
+}
+
+/* Submenús (se expanden dentro del mismo desplegable en GNOME 50) */
+.tahoe-menubar-menu .popup-sub-menu {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+    background-image: none !important;
+    border: none !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    padding: 2px !important;
+    margin: 1px 0 !important;
+}
+
+.tahoe-menubar-menu .popup-sub-menu .popup-menu-item {
+    border-radius: 7px !important;
+    background-color: transparent !important;
+    color: #f5f5f7 !important;
+}
+
+.tahoe-menubar-menu .popup-sub-menu .popup-menu-item:hover,
+.tahoe-menubar-menu .popup-sub-menu .popup-menu-item:focus,
+.tahoe-menubar-menu .popup-sub-menu .popup-menu-item:selected,
+.tahoe-menubar-menu .popup-sub-menu .popup-menu-item:active,
+.tahoe-menubar-menu .popup-sub-menu .popup-menu-item:checked {
+    background-color: #0a84ff !important;
+    color: #ffffff !important;
+}
+
+.tahoe-menubar-menu .popup-sub-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Encabezados de sección ocasionales */
+.tahoe-menubar-menu .popup-menu-item.tahoe-menubar-header {
+    color: rgba(255, 255, 255, 0.45) !important;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px !important;
+}

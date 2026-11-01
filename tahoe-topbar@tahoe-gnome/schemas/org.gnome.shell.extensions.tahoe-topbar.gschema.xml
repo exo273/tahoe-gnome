@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.tahoe-topbar" path="/org/gnome/shell/extensions/tahoe-topbar/">
+
+    <!-- ===== Logo / menú de manzana ===== -->
+    <key name="logo-type" type="s">
+      <choices>
+        <choice value="apple"/>
+        <choice value="apple-outline"/>
+        <choice value="fedora"/>
+        <choice value="gnome"/>
+        <choice value="custom"/>
+      </choices>
+      <default>'apple'</default>
+      <summary>Logo del menú principal</summary>
+    </key>
+    <key name="custom-logo-path" type="s">
+      <default>''</default>
+      <summary>Ruta a un SVG/PNG personalizado (logo-type = custom)</summary>
+    </key>
+    <key name="logo-size" type="i">
+      <range min="10" max="32"/>
+      <default>16</default>
+      <summary>Tamaño del logo en px</summary>
+    </key>
+    <key name="logo-symbolic" type="b">
+      <default>true</default>
+      <summary>Colorear el logo con el color del texto del panel (monocromo)</summary>
+    </key>
+
+    <!-- ===== Panel ===== -->
+    <key name="panel-height" type="i">
+      <range min="20" max="48"/>
+      <default>30</default>
+      <summary>Altura del panel en px</summary>
+    </key>
+    <key name="panel-style" type="s">
+      <choices>
+        <choice value="transparent"/>
+        <choice value="translucent"/>
+        <choice value="solid"/>
+      </choices>
+      <default>'transparent'</default>
+      <summary>Estilo de fondo (Tahoe = transparent)</summary>
+    </key>
+    <key name="panel-opacity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.35</default>
+      <summary>Opacidad del fondo en modo translucent</summary>
+    </key>
+    <key name="solid-when-maximized" type="b">
+      <default>true</default>
+      <summary>Volver el panel opaco cuando hay una ventana maximizada o pegada arriba</summary>
+    </key>
+    <key name="text-color" type="s">
+      <choices>
+        <choice value="auto"/>
+        <choice value="light"/>
+        <choice value="dark"/>
+      </choices>
+      <default>'auto'</default>
+      <summary>Color del texto (auto = según esquema de color del sistema)</summary>
+    </key>
+    <key name="font-family" type="s">
+      <default>''</default>
+      <summary>Fuente del panel (vacío = SF Pro Text / Inter / sistema)</summary>
+    </key>
+    <key name="font-size" type="i">
+      <range min="9" max="18"/>
+      <default>13</default>
+      <summary>Tamaño de fuente en px</summary>
+    </key>
+    <key name="hide-activities" type="b">
+      <default>true</default>
+      <summary>Ocultar el botón/indicador de Actividades</summary>
+    </key>
+
+    <!-- ===== Nombre de app y menús ===== -->
+    <key name="show-app-name" type="b">
+      <default>true</default>
+      <summary>Mostrar el nombre de la aplicación activa en negrita</summary>
+    </key>
+    <key name="show-fake-menus" type="b">
+      <default>true</default>
+      <summary>Mostrar barra de menús dinámica (Archivo, Edición, Visualización, Ventana, Ayuda…)</summary>
+    </key>
+    <key name="desktop-app-name" type="s">
+      <default>'Archivos'</default>
+      <summary>Nombre mostrado cuando el escritorio está enfocado (equivalente a Finder)</summary>
+    </key>
+    <key name="menu-use-app-actions" type="b">
+      <default>true</default>
+      <summary>Leer las acciones/menús reales de la app por D-Bus (org.gtk.Actions / org.gtk.Menus)</summary>
+    </key>
+
+    <!-- ===== Centro de control ===== -->
+    <key name="control-center-enabled" type="b">
+      <default>true</default>
+      <summary>Reemplazar los Ajustes rápidos de GNOME por un Centro de control estilo Tahoe</summary>
+    </key>
+    <key name="control-center-show-battery-percent" type="b">
+      <default>true</default>
+      <summary>Mostrar el porcentaje de batería en la barra</summary>
+    </key>
+    <key name="control-center-show-now-playing" type="b">
+      <default>true</default>
+      <summary>Mostrar el módulo Reproduciendo (MPRIS) en el Centro de control</summary>
+    </key>
+
+    <!-- ===== Reloj ===== -->
+    <key name="move-clock-right" type="b">
+      <default>true</default>
+      <summary>Mover el reloj al extremo derecho</summary>
+    </key>
+    <key name="clock-format" type="s">
+      <default>'%a %e %b  %H:%M'</default>
+      <summary>Formato GLib.DateTime del reloj (vacío = formato de GNOME)</summary>
+    </key>
+
+    <!-- ===== Acerca de este Mac ===== -->
+    <key name="about-image-path" type="s">
+      <default>''</default>
+      <summary>Imagen de la ventana Acerca de (vacío = imagen por defecto)</summary>
+    </key>
+    <key name="about-title" type="s">
+      <default>''</default>
+      <summary>Título grande (vacío = modelo del equipo, p.ej. ThinkPad T14 Gen 2i)</summary>
+    </key>
+    <key name="about-subtitle" type="s">
+      <default>''</default>
+      <summary>Subtítulo (vacío = automático, p.ej. 14 pulgadas, 2021)</summary>
+    </key>
+    <key name="about-chip" type="s">
+      <default>''</default>
+      <summary>Texto del procesador (vacío = autodetectar)</summary>
+    </key>
+    <key name="about-graphics" type="s">
+      <default>''</default>
+      <summary>Texto de gráficos (vacío = autodetectar)</summary>
+    </key>
+    <key name="about-serial" type="s">
+      <default>''</default>
+      <summary>Número de serie a mostrar (vacío = derivado de machine-id)</summary>
+    </key>
+    <key name="about-os-name" type="s">
+      <default>''</default>
+      <summary>Nombre del sistema (vacío = /etc/os-release, p.ej. Fedora Linux 44)</summary>
+    </key>
+  </schema>
+</schemalist>
