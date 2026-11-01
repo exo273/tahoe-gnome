@@ -51,6 +51,7 @@ export const TahoeSlider = GObject.registerClass({
 
         this.connect('repaint', () => this._draw());
         this.connect('notify::allocation', () => this.queue_repaint());
+        this.connect('style-changed', () => this.queue_repaint());
 
         this.connect('button-press-event', (actor, event) => {
             if (event.get_button() !== 1)
@@ -219,6 +220,17 @@ export const TahoeSlider = GObject.registerClass({
         cr.closePath();
     }
 
+    _isLightTheme() {
+        try {
+            const color = this.get_theme_node().get_foreground_color();
+            const luminance = (0.2126 * color.red +
+                0.7152 * color.green + 0.0722 * color.blue) / 255;
+            return luminance < 0.5;
+        } catch (_e) {
+            return false;
+        }
+    }
+
     _draw() {
         if (this.width <= 0 || this.height <= 0)
             return;
@@ -237,8 +249,12 @@ export const TahoeSlider = GObject.registerClass({
             (width - handleWidth) * progress;
         const handleX = handleCenter - handleWidth / 2;
         const handleY = (height - handleHeight) / 2;
+        const light = this._isLightTheme();
 
-        cr.setSourceRGBA(1, 1, 1, 0.30);
+        if (light)
+            cr.setSourceRGBA(0, 0, 0, 0.15);
+        else
+            cr.setSourceRGBA(1, 1, 1, 0.25);
         this._roundedRect(cr, 0, trackY, width, trackHeight,
             trackHeight / 2);
         cr.fill();
@@ -251,14 +267,9 @@ export const TahoeSlider = GObject.registerClass({
         }
 
         // Sombra suave del tirador (Cairo no tiene blur; se aproxima).
-        cr.setSourceRGBA(0, 0, 0, 0.16);
+        cr.setSourceRGBA(0, 0, 0, 0.14);
         this._roundedRect(cr, handleX + 0.5 * scale,
             handleY + 1.5 * scale, handleWidth, handleHeight,
-            handleHeight / 2);
-        cr.fill();
-        cr.setSourceRGBA(0, 0, 0, 0.18);
-        this._roundedRect(cr, handleX,
-            handleY + 1 * scale, handleWidth, handleHeight,
             handleHeight / 2);
         cr.fill();
 
@@ -266,6 +277,17 @@ export const TahoeSlider = GObject.registerClass({
         this._roundedRect(cr, handleX, handleY,
             handleWidth, handleHeight, handleHeight / 2);
         cr.fill();
+
+        // En claro, un borde fino separa el tirador blanco del cristal.
+        if (light) {
+            cr.setSourceRGBA(0, 0, 0, 0.12);
+            cr.setLineWidth(Math.max(1, scale));
+            this._roundedRect(cr, handleX + 0.5 * scale,
+                handleY + 0.5 * scale,
+                handleWidth - scale, handleHeight - scale,
+                handleHeight / 2);
+            cr.stroke();
+        }
 
         cr.$dispose();
     }

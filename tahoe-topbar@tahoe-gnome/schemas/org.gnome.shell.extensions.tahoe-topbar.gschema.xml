@@ -59,7 +59,12 @@
         <choice value="dark"/>
       </choices>
       <default>'auto'</default>
-      <summary>Color del texto (auto = según esquema de color del sistema)</summary>
+      <summary>Color del texto (auto = según la luminancia del fondo de pantalla)</summary>
+    </key>
+    <key name="sync-shell-theme" type="b">
+      <default>false</default>
+      <summary>Sincronizar el tema de GNOME Shell y GTK con el modo claro/oscuro</summary>
+      <description>Usa MacTahoe-Light / MacTahoe-Dark, conservando sufijos como -solid o -hdpi, y actualiza el enlace ~/.config/gtk-4.0/gtk.css si apunta a gtk-Light.css o gtk-Dark.css. Sólo cambia temas instalados en ~/.themes o /usr/share/themes.</description>
     </key>
     <key name="font-family" type="s">
       <default>''</default>

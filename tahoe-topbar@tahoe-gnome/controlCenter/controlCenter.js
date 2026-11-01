@@ -154,6 +154,9 @@ export class TahoeControlCenter {
 
         this._theme = null;
         this._cssFile = null;
+        this._tahoeTheme = null;
+        this._themeChangedId = 0;
+        this._isLight = true;
 
         this._settings = null;
         this._interfaceSettings = null;
@@ -217,7 +220,7 @@ export class TahoeControlCenter {
 
         this._loadStylesheet();
         this._loadSettings();
-        this._applyColorScheme();
+        this._bindTheme();
 
         this._createControllers();
         this._bindControllers();
@@ -316,6 +319,60 @@ export class TahoeControlCenter {
         }
     }
 
+    _bindTheme() {
+        this._tahoeTheme = this._extension?._theme ?? null;
+        this._isLight = !(this._tahoeTheme?.isDark ?? true);
+
+        if (this._tahoeTheme)
+            this._themeChangedId = this._tahoeTheme.connect(() => this._onThemeChanged());
+    }
+
+    _onThemeChanged() {
+        if (this._destroyed)
+            return;
+
+        this._isLight = !(this._tahoeTheme?.isDark ?? true);
+
+        // El CSS global recolorea todos los actores; sólo hay que refrescar el
+        // brillo del desenfoque y los elementos pintados con Cairo.
+        this._refreshGlass();
+        this._repaintDrawings();
+    }
+
+    _refreshGlass() {
+        for (const actor of this._glassActors) {
+            try {
+                if (!actor?.get_stage())
+                    continue;
+                const radius = actor._tahoeGlass?.radius ??
+                    actor._tahoeGlassRadius ?? 24;
+                applyGlass(actor, {
+                    radius,
+                    blur: this._blurEnabled,
+                    dark: !this._isLight,
+                });
+            } catch (e) {
+                console.error(`${LOG} No se pudo actualizar el cristal:`, e);
+            }
+        }
+    }
+
+    _repaintDrawings() {
+        for (const actor of [
+            this._batteryIcon,
+            this._mainRefs?.brightnessSlider,
+            this._mainRefs?.soundSlider,
+            this._detailRefs?.slider,
+            this._soundPopoverRefs?.slider,
+        ]) {
+            try {
+                actor?.queue_repaint?.();
+            } catch (_e) {
+                // Actor ya destruido.
+            }
+        }
+    }
+
     _onSettingsChanged(key) {
         if (this._destroyed)
             return;
@@ -323,17 +380,7 @@ export class TahoeControlCenter {
         switch (key) {
         case 'control-center-blur':
             this._blurEnabled = this._getBoolean('control-center-blur', true);
-            for (const actor of this._glassActors) {
-                try {
-                    if (!actor?.get_stage())
-                        continue;
-                    const radius = actor._tahoeGlass?.radius ??
-                        actor._tahoeGlassRadius ?? 24;
-                    applyGlass(actor, {radius, blur: this._blurEnabled});
-                } catch (e) {
-                    console.error(`${LOG} No se pudo actualizar el cristal:`, e);
-                }
-            }
+            this._refreshGlass();
             break;
         case 'control-center-show-sound-icon':
             this._showSoundIcon = this._getBoolean(
@@ -558,7 +605,11 @@ export class TahoeControlCenter {
             try {
                 if (!actor.get_stage())
                     return;
-                applyGlass(actor, {radius, blur: this._blurEnabled});
+                applyGlass(actor, {
+                    radius,
+                    blur: this._blurEnabled,
+                    dark: !this._isLight,
+                });
             } catch (e) {
                 console.error(`${LOG} No se pudo aplicar el cristal:`, e);
             }
@@ -643,7 +694,6 @@ export class TahoeControlCenter {
         this._connect(this._batteryButton.menu, 'open-state-changed', (_menu, open) => {
             this._setButtonOpen(this._batteryButton, open);
             if (open) {
-                this._applyColorScheme();
                 this._buildBatteryPopover();
             }
         });
@@ -678,7 +728,6 @@ export class TahoeControlCenter {
         this._connect(this._soundButton.menu, 'open-state-changed', (_menu, open) => {
             this._setButtonOpen(this._soundButton, open);
             if (open) {
-                this._applyColorScheme();
                 this._buildSoundPopover();
             } else {
                 this._soundPopoverRefs = null;
@@ -720,7 +769,6 @@ export class TahoeControlCenter {
         this._connect(this._wifiButton.menu, 'open-state-changed', (_menu, open) => {
             this._setButtonOpen(this._wifiButton, open);
             if (open) {
-                this._applyColorScheme();
                 this._buildWifiPopover();
                 this._network?.requestScan();
                 this._addTimeout(900, () => {
@@ -753,7 +801,6 @@ export class TahoeControlCenter {
             this._setButtonOpen(this._ccButton, open);
             if (open) {
                 this._view = 'main';
-                this._applyColorScheme();
                 this._renderMain();
                 this._network?.requestScan();
                 this._queueSync();
@@ -1147,13 +1194,6 @@ export class TahoeControlCenter {
     // ------------------------------------------------------------------
 
     _connectDesktopSignals() {
-        if (this._interfaceSettings) {
-            this._connect(this._interfaceSettings, 'changed::color-scheme', () => {
-                this._applyColorScheme();
-                this._queueSync();
-            });
-        }
-
         if (this._notificationSettings) {
             this._connect(this._notificationSettings, 'changed::show-banners',
                 () => this._queueSync());
@@ -1180,7 +1220,6 @@ export class TahoeControlCenter {
         }
 
         this._connect(Main.sessionMode, 'updated', () => {
-            this._applyColorScheme();
             if (Main.sessionMode.currentMode === 'user') {
                 this._syncQuickSettingsVisibility();
                 this._reorderPanelButtons();
@@ -1208,33 +1247,6 @@ export class TahoeControlCenter {
                     index >= 0 ? index : rightBox.get_n_children());
             } catch (e) {
                 console.error(`${LOG} No se pudo recolocar un botón del panel:`, e);
-            }
-        }
-    }
-
-    _applyColorScheme() {
-        let light = false;
-        try {
-            light = this._interfaceSettings?.get_string('color-scheme') !== 'prefer-dark';
-        } catch (_e) {
-            light = false;
-        }
-
-        this._isLight = light;
-
-        for (const button of [this._ccButton, this._batteryButton,
-            this._soundButton, this._wifiButton]) {
-            const actor = button?.menu?.actor;
-            if (!actor)
-                continue;
-
-            try {
-                if (light)
-                    actor.add_style_class_name('tahoe-cc-light');
-                else
-                    actor.remove_style_class_name('tahoe-cc-light');
-            } catch (_e) {
-                // Actor destruido.
             }
         }
     }
@@ -1642,13 +1654,7 @@ export class TahoeControlCenter {
         }
 
         if (refs.dark) {
-            let dark = false;
-            try {
-                dark = this._interfaceSettings?.get_string('color-scheme') ===
-                    'prefer-dark';
-            } catch (_e) {
-                dark = false;
-            }
+            const dark = this._tahoeTheme?.isDark ?? false;
             refs.dark.setOn(dark);
         }
 
@@ -2928,6 +2934,11 @@ export class TahoeControlCenter {
         this._idleIds.clear();
 
         this._disconnectTracked();
+
+        if (this._tahoeTheme && this._themeChangedId)
+            this._tahoeTheme.disconnect(this._themeChangedId);
+        this._themeChangedId = 0;
+        this._tahoeTheme = null;
 
         if (this._sink) {
             try {

@@ -51,7 +51,7 @@ const PANEL_STYLES = [
 ];
 
 const TEXT_COLORS = [
-    {value: 'auto', label: 'Automático'},
+    {value: 'auto', label: 'Automático (según el fondo de pantalla)'},
     {value: 'light', label: 'Claro'},
     {value: 'dark', label: 'Oscuro'},
 ];
@@ -532,7 +532,7 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
             'text-color',
             _('Color del texto'),
             TEXT_COLORS,
-            _('Automático sigue el esquema de color del sistema.'));
+            _('Automático calcula el contraste a partir de la franja superior del fondo de pantalla.'));
 
         const fontRow = this._entryRow(
             settings,
@@ -556,6 +556,12 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
             _('Ocultar Actividades'),
             _('Quita el botón «Actividades» de la barra.'));
 
+        const syncThemeRow = this._switchRow(
+            settings,
+            'sync-shell-theme',
+            _('Sincronizar tema de shell y GTK con el modo claro/oscuro'),
+            _('Usa MacTahoe-Light / MacTahoe-Dark (conserva sufijos como -solid o -hdpi).'));
+
         group.add(heightRow);
         group.add(styleRow);
         group.add(opacityRow);
@@ -564,6 +570,7 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         group.add(fontRow);
         group.add(fontSizeRow);
         group.add(hideActivitiesRow);
+        group.add(syncThemeRow);
 
         settings.connect('changed::panel-style', syncOpacitySensitivity);
         syncOpacitySensitivity();

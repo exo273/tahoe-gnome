@@ -1,6 +1,6 @@
 /* ==========================================================================
    Tahoe Top Bar — barra de menús dinámica
-   Material Liquid Glass claro por defecto y variante .tahoe-menu-dark.
+   El material claro/oscuro lo eligen las clases globales .tahoe-theme-*.
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -82,12 +82,12 @@
 
 #panel.tahoe-panel.tahoe-text-dark .tahoe-menubar-title:hover,
 #panel.tahoe-panel.tahoe-text-dark .tahoe-menubar-title:focus {
-    background-color: rgba(0, 0, 0, 0.10) !important;
+    background-color: rgba(0, 0, 0, 0.08) !important;
 }
 
 #panel.tahoe-panel.tahoe-text-dark .tahoe-menubar-title:active,
 #panel.tahoe-panel.tahoe-text-dark .tahoe-menubar-title:checked {
-    background-color: rgba(0, 0, 0, 0.16) !important;
+    background-color: rgba(0, 0, 0, 0.10) !important;
 }
 
 #panel.tahoe-panel.tahoe-text-light .tahoe-menubar-title .tahoe-menubar-label {
@@ -99,7 +99,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   Desplegables: Liquid Glass claro
+   Desplegables: geometría común
    -------------------------------------------------------------------------- */
 
 .tahoe-menubar-menu {
@@ -114,15 +114,12 @@
 }
 
 .tahoe-menubar-menu .popup-menu-content {
-    background-color: rgba(235, 240, 248, 0.72) !important;
     background-image: none !important;
-    border: 1px solid rgba(255, 255, 255, 0.6) !important;
     border-radius: 14px !important;
     box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.22) !important;
     padding: 5px !important;
     margin: 0 !important;
     min-width: 200px;
-    color: #1d1d1f !important;
 }
 
 .tahoe-menubar-menu .popup-menu-item {
@@ -136,66 +133,22 @@
     spacing: 6px;
     font-size: 13px;
     font-weight: 400;
-    color: #1d1d1f !important;
     text-shadow: none !important;
 }
 
-.tahoe-menubar-menu .popup-menu-item:hover,
-.tahoe-menubar-menu .popup-menu-item:focus,
-.tahoe-menubar-menu .popup-menu-item:selected,
-.tahoe-menubar-menu .popup-menu-item:active {
-    background-color: #0a84ff !important;
-    background-image: none !important;
-    box-shadow: none !important;
-    color: #ffffff !important;
-}
-
 .tahoe-menubar-menu .popup-menu-item:checked {
-    background-color: rgba(0, 0, 0, 0.06) !important;
-    color: #1d1d1f !important;
     border-radius: 8px !important;
 }
 
-.tahoe-menubar-menu .popup-menu-item:checked:hover,
-.tahoe-menubar-menu .popup-menu-item:checked:focus,
-.tahoe-menubar-menu .popup-menu-item:checked:selected {
-    background-color: #0a84ff !important;
-    color: #ffffff !important;
+.tahoe-menubar-menu .popup-menu-ornament {
+    width: 14px;
+    icon-size: 12px;
 }
 
-.tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled,
-.tahoe-menubar-menu .popup-menu-item:insensitive {
-    background-color: transparent !important;
-    background-image: none !important;
-    box-shadow: none !important;
-    color: rgba(0, 0, 0, 0.35) !important;
-}
-
-.tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled:hover,
-.tahoe-menubar-menu .popup-menu-item:insensitive:hover {
-    background-color: transparent !important;
-    color: rgba(0, 0, 0, 0.35) !important;
-}
-
-/* Atajos de teclado alineados a la derecha */
 .tahoe-menubar-menu .tahoe-menubar-accel {
-    color: rgba(0, 0, 0, 0.45) !important;
     font-size: 13px;
     font-weight: 400;
     padding-left: 18px;
-}
-
-.tahoe-menubar-menu .popup-menu-item:hover .tahoe-menubar-accel,
-.tahoe-menubar-menu .popup-menu-item:focus .tahoe-menubar-accel,
-.tahoe-menubar-menu .popup-menu-item:selected .tahoe-menubar-accel,
-.tahoe-menubar-menu .popup-menu-item:active .tahoe-menubar-accel,
-.tahoe-menubar-menu .popup-menu-item:checked:hover .tahoe-menubar-accel {
-    color: rgba(255, 255, 255, 0.95) !important;
-}
-
-.tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled .tahoe-menubar-accel,
-.tahoe-menubar-menu .popup-menu-item:insensitive .tahoe-menubar-accel {
-    color: rgba(0, 0, 0, 0.25) !important;
 }
 
 /* Separadores finos */
@@ -211,40 +164,16 @@
 
 .tahoe-menubar-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
     height: 1px;
-    background-color: rgba(0, 0, 0, 0.12) !important;
     background-image: none !important;
-}
-
-/* Ornamento (✓ de «Siempre encima», ventana activa…) */
-.tahoe-menubar-menu .popup-menu-ornament {
-    width: 14px;
-    icon-size: 12px;
-    color: #1d1d1f;
-}
-
-.tahoe-menubar-menu .popup-menu-item:hover .popup-menu-ornament,
-.tahoe-menubar-menu .popup-menu-item:focus .popup-menu-ornament,
-.tahoe-menubar-menu .popup-menu-item:selected .popup-menu-ornament,
-.tahoe-menubar-menu .popup-menu-item:active .popup-menu-ornament {
-    color: #ffffff;
 }
 
 /* Chevron de submenús */
 .tahoe-menubar-menu .popup-menu-arrow {
-    color: rgba(0, 0, 0, 0.45) !important;
     icon-size: 12px;
-}
-
-.tahoe-menubar-menu .popup-menu-item:hover .popup-menu-arrow,
-.tahoe-menubar-menu .popup-menu-item:focus .popup-menu-arrow,
-.tahoe-menubar-menu .popup-menu-item:selected .popup-menu-arrow,
-.tahoe-menubar-menu .popup-menu-item:active .popup-menu-arrow {
-    color: #ffffff !important;
 }
 
 /* Submenús */
 .tahoe-menubar-menu .popup-sub-menu {
-    background-color: rgba(0, 0, 0, 0.045) !important;
     background-image: none !important;
     border: none !important;
     border-radius: 8px !important;
@@ -256,129 +185,224 @@
 .tahoe-menubar-menu .popup-sub-menu .popup-menu-item {
     border-radius: 7px !important;
     background-color: transparent !important;
-    color: #1d1d1f !important;
-}
-
-.tahoe-menubar-menu .popup-sub-menu .popup-menu-item:hover,
-.tahoe-menubar-menu .popup-sub-menu .popup-menu-item:focus,
-.tahoe-menubar-menu .popup-sub-menu .popup-menu-item:selected,
-.tahoe-menubar-menu .popup-sub-menu .popup-menu-item:active {
-    background-color: #0a84ff !important;
-    color: #ffffff !important;
-}
-
-.tahoe-menubar-menu .popup-sub-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
-    background-color: rgba(0, 0, 0, 0.10) !important;
 }
 
 /* Encabezados de sección ocasionales */
 .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-header {
-    color: rgba(0, 0, 0, 0.45) !important;
     font-size: 11px;
     font-weight: 600;
     padding: 3px 8px !important;
 }
 
-/* --------------------------------------------------------------------------
-   Variante oscura
-   -------------------------------------------------------------------------- */
+/* ---------------------------- Tema claro -------------------------------- */
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-content {
-    background-color: rgba(40, 40, 44, 0.72) !important;
-    border-color: rgba(255, 255, 255, 0.14) !important;
-    box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.22) !important;
-    color: #f5f5f7 !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-content {
+    background-color: rgba(246, 246, 248, 0.78) !important;
+    border: 1px solid rgba(255, 255, 255, 0.65) !important;
+    color: #1d1d1f !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item {
-    color: #f5f5f7 !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item {
+    color: #1d1d1f !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:hover,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:focus,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:selected,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:active {
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:hover,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:focus,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:selected,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:active,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:checked:hover,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:checked:focus,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:checked:selected {
     background-color: #0a84ff !important;
+    background-image: none !important;
+    box-shadow: none !important;
     color: #ffffff !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:checked {
-    background-color: rgba(255, 255, 255, 0.08) !important;
-    color: #f5f5f7 !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:checked {
+    background-color: rgba(0, 0, 0, 0.06) !important;
+    color: #1d1d1f !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:checked:hover,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:checked:focus,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:checked:selected {
-    background-color: #0a84ff !important;
-    color: #ffffff !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:insensitive {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: rgba(0, 0, 0, 0.35) !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:insensitive {
-    color: rgba(255, 255, 255, 0.35) !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled:hover,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:insensitive:hover {
+    background-color: transparent !important;
+    color: rgba(0, 0, 0, 0.35) !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .tahoe-menubar-accel {
-    color: rgba(255, 255, 255, 0.55) !important;
+.tahoe-theme-light .tahoe-menubar-menu .tahoe-menubar-accel {
+    color: rgba(0, 0, 0, 0.45) !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:hover .tahoe-menubar-accel,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:focus .tahoe-menubar-accel,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:selected .tahoe-menubar-accel,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:active .tahoe-menubar-accel {
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:hover .tahoe-menubar-accel,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:focus .tahoe-menubar-accel,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:selected .tahoe-menubar-accel,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:active .tahoe-menubar-accel,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:checked:hover .tahoe-menubar-accel {
     color: rgba(255, 255, 255, 0.95) !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled .tahoe-menubar-accel,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:insensitive .tahoe-menubar-accel {
-    color: rgba(255, 255, 255, 0.25) !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled .tahoe-menubar-accel,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:insensitive .tahoe-menubar-accel {
+    color: rgba(0, 0, 0, 0.25) !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
-    background-color: rgba(255, 255, 255, 0.12) !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
+    background-color: rgba(0, 0, 0, 0.10) !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-ornament {
-    color: #f5f5f7;
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-ornament {
+    color: #1d1d1f;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:hover .popup-menu-ornament,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:focus .popup-menu-ornament,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:selected .popup-menu-ornament {
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:hover .popup-menu-ornament,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:focus .popup-menu-ornament,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:selected .popup-menu-ornament,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:active .popup-menu-ornament {
     color: #ffffff;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-arrow {
-    color: rgba(255, 255, 255, 0.55) !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-arrow {
+    color: rgba(0, 0, 0, 0.45) !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:hover .popup-menu-arrow,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:focus .popup-menu-arrow,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item:selected .popup-menu-arrow {
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:hover .popup-menu-arrow,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:focus .popup-menu-arrow,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:selected .popup-menu-arrow,
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item:active .popup-menu-arrow {
     color: #ffffff !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-sub-menu {
-    background-color: rgba(255, 255, 255, 0.06) !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-sub-menu {
+    background-color: rgba(0, 0, 0, 0.045) !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item {
-    color: #f5f5f7 !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-sub-menu .popup-menu-item {
+    color: #1d1d1f !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:hover,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:focus,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:selected,
-.tahoe-menu-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:active {
+.tahoe-theme-light .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:hover,
+.tahoe-theme-light .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:focus,
+.tahoe-theme-light .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:selected,
+.tahoe-theme-light .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:active {
     background-color: #0a84ff !important;
     color: #ffffff !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-sub-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
-    background-color: rgba(255, 255, 255, 0.10) !important;
+.tahoe-theme-light .tahoe-menubar-menu .popup-sub-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
+    background-color: rgba(0, 0, 0, 0.10) !important;
 }
 
-.tahoe-menu-dark .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-header {
+.tahoe-theme-light .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-header {
+    color: rgba(0, 0, 0, 0.45) !important;
+}
+
+/* ---------------------------- Tema oscuro ------------------------------- */
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-content {
+    background-color: rgba(36, 36, 40, 0.78) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    color: #ffffff !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item {
+    color: #ffffff !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:hover,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:focus,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:selected,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:active,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:checked:hover,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:checked:focus,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:checked:selected {
+    background-color: #0a84ff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: #ffffff !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:checked {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:insensitive {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .tahoe-menubar-accel {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:hover .tahoe-menubar-accel,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:focus .tahoe-menubar-accel,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:selected .tahoe-menubar-accel,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:active .tahoe-menubar-accel {
+    color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-disabled .tahoe-menubar-accel,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:insensitive .tahoe-menubar-accel {
+    color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-ornament {
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:hover .popup-menu-ornament,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:focus .popup-menu-ornament,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:selected .popup-menu-ornament {
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-arrow {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:hover .popup-menu-arrow,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:focus .popup-menu-arrow,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item:selected .popup-menu-arrow {
+    color: #ffffff !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-sub-menu {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item {
+    color: #ffffff !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:hover,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:focus,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:selected,
+.tahoe-theme-dark .tahoe-menubar-menu .popup-sub-menu .popup-menu-item:active {
+    background-color: #0a84ff !important;
+    color: #ffffff !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-sub-menu .popup-separator-menu-item .popup-separator-menu-item-separator {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.tahoe-theme-dark .tahoe-menubar-menu .popup-menu-item.tahoe-menubar-header {
     color: rgba(255, 255, 255, 0.45) !important;
 }

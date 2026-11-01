@@ -1,6 +1,7 @@
 /* ==========================================================================
    Tahoe Top Bar — Centro de control (macOS Tahoe)
    Módulos de cristal flotantes, sin contenedor de menú.
+   El modo lo publican .tahoe-theme-light / .tahoe-theme-dark en uiGroup.
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -14,10 +15,26 @@
     border-radius: 999px;
 }
 
+#panel.tahoe-panel .tahoe-cc-panel-button:hover,
+#panel.tahoe-panel .tahoe-cc-panel-button:focus {
+    background-color: rgba(255, 255, 255, 0.18) !important;
+    box-shadow: none !important;
+}
+
 #panel.tahoe-panel .tahoe-cc-panel-button:active,
 #panel.tahoe-panel .tahoe-cc-panel-button.tahoe-cc-open {
-    background-color: rgba(255, 255, 255, 0.28) !important;
+    background-color: rgba(255, 255, 255, 0.25) !important;
     box-shadow: none !important;
+}
+
+#panel.tahoe-panel.tahoe-text-dark .tahoe-cc-panel-button:hover,
+#panel.tahoe-panel.tahoe-text-dark .tahoe-cc-panel-button:focus {
+    background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+#panel.tahoe-panel.tahoe-text-dark .tahoe-cc-panel-button:active,
+#panel.tahoe-panel.tahoe-text-dark .tahoe-cc-panel-button.tahoe-cc-open {
+    background-color: rgba(0, 0, 0, 0.10) !important;
 }
 
 #panel.tahoe-panel .tahoe-cc-panel-icon,
@@ -105,15 +122,16 @@
     border-radius: 0 !important;
     min-width: 0 !important;
     width: auto !important;
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .tahoe-cc-menu .popup-menu-content {
     color: #ffffff;
 }
 
-.tahoe-cc-menu StLabel {
+/* En claro no hay sombra de texto; en oscuro se conserva un contraste suave. */
+.tahoe-theme-dark .tahoe-cc-menu StLabel {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-}
-
-.tahoe-cc-menu.tahoe-cc-light StLabel {
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.40);
 }
 
 .tahoe-cc-main-menu .tahoe-cc-root {
@@ -131,26 +149,27 @@
 }
 
 /* --------------------------------------------------------------------------
-   Material Liquid Glass
+   Material Liquid Glass (claro por defecto)
    -------------------------------------------------------------------------- */
 
 .tahoe-cc-glass {
-    background-color: rgba(255, 255, 255, 0.16);
+    background-color: rgba(255, 255, 255, 0.55);
     background-image: none;
     background-gradient-direction: vertical;
-    background-gradient-start: rgba(255, 255, 255, 0.26);
-    background-gradient-end: rgba(255, 255, 255, 0.10);
-    border: 1px solid rgba(255, 255, 255, 0.38);
+    background-gradient-start: rgba(255, 255, 255, 0.62);
+    background-gradient-end: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.7);
     box-shadow: 0 3px 9px rgba(0, 0, 0, 0.12);
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
-.tahoe-cc-light .tahoe-cc-glass {
-    background-color: rgba(255, 255, 255, 0.24);
-    background-gradient-start: rgba(255, 255, 255, 0.34);
-    background-gradient-end: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.46);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+.tahoe-theme-dark .tahoe-cc-glass {
+    background-color: rgba(40, 40, 44, 0.45);
+    background-gradient-start: rgba(52, 52, 56, 0.55);
+    background-gradient-end: rgba(32, 32, 36, 0.38);
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.24);
+    color: #ffffff;
 }
 
 /* --------------------------------------------------------------------------
@@ -160,41 +179,73 @@
 .tahoe-cc-title {
     font-size: 13px;
     font-weight: 600;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-subtitle {
     font-size: 11px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.75);
+    color: rgba(0, 0, 0, 0.55);
 }
 
 .tahoe-cc-card-title {
     font-size: 13px;
     font-weight: 600;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-sheet-title {
     font-size: 13px;
     font-weight: 700;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-popover-subtitle {
     font-size: 11px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.62);
+    color: rgba(0, 0, 0, 0.55);
 }
 
 .tahoe-cc-section-label {
     font-size: 13px;
     font-weight: 700;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-section-chevron {
-    color: rgba(255, 255, 255, 0.85);
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.tahoe-theme-dark .tahoe-cc-title,
+.tahoe-theme-dark .tahoe-cc-card-title,
+.tahoe-theme-dark .tahoe-cc-sheet-title,
+.tahoe-theme-dark .tahoe-cc-detail-title,
+.tahoe-theme-dark .tahoe-cc-section-label,
+.tahoe-theme-dark .tahoe-cc-battery-percentage,
+.tahoe-theme-dark .tahoe-cc-footer-label,
+.tahoe-theme-dark .tahoe-cc-sheet-link,
+.tahoe-theme-dark .tahoe-cc-sheet-link-label,
+.tahoe-theme-dark .tahoe-cc-list-row,
+.tahoe-theme-dark .tahoe-cc-list-title,
+.tahoe-theme-dark .tahoe-cc-media-title {
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-cc-subtitle,
+.tahoe-theme-dark .tahoe-cc-popover-subtitle,
+.tahoe-theme-dark .tahoe-cc-media-artist,
+.tahoe-theme-dark .tahoe-cc-list-subtitle,
+.tahoe-theme-dark .tahoe-cc-empty-label,
+.tahoe-theme-dark .tahoe-cc-media-empty-label,
+.tahoe-theme-dark .tahoe-cc-info-line,
+.tahoe-theme-dark .tahoe-cc-info-key {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.tahoe-theme-dark .tahoe-cc-section-chevron,
+.tahoe-theme-dark .tahoe-cc-info-value,
+.tahoe-theme-dark .tahoe-cc-list-suffix {
+    color: rgba(255, 255, 255, 0.72);
 }
 
 /* --------------------------------------------------------------------------
@@ -255,6 +306,10 @@
     padding: 0;
     margin: 0;
     border-width: 1px;
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .tahoe-cc-circle {
     color: #ffffff;
 }
 
@@ -283,19 +338,23 @@
 }
 
 .tahoe-cc-circle:hover {
+    background-color: rgba(255, 255, 255, 0.45);
+}
+
+.tahoe-theme-dark .tahoe-cc-circle:hover {
     background-color: rgba(255, 255, 255, 0.24);
 }
 
 .tahoe-cc-icon-circle {
-    background-color: rgba(255, 255, 255, 0.22);
-    border: 1px solid rgba(255, 255, 255, 0.30);
-    color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
     padding: 0;
     margin: 0;
 }
 
 .tahoe-cc-icon-circle:hover {
-    background-color: rgba(255, 255, 255, 0.30);
+    background-color: rgba(0, 0, 0, 0.12);
 }
 
 .tahoe-cc-icon-circle.tahoe-cc-on {
@@ -304,8 +363,64 @@
     color: #ffffff;
 }
 
-/* Toggle activo: círculo blanco opaco con icono azul. */
-.tahoe-cc-glass.tahoe-cc-on {
+.tahoe-theme-dark .tahoe-cc-icon-circle {
+    background-color: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-cc-icon-circle:hover {
+    background-color: rgba(255, 255, 255, 0.30);
+}
+
+.tahoe-theme-dark .tahoe-cc-icon-circle.tahoe-cc-on {
+    background-color: rgba(255, 255, 255, 0.95);
+    border-color: rgba(255, 255, 255, 0.95);
+    color: #0a84ff;
+}
+
+/* Círculos independientes (interruptores y acciones): en reposo el módulo
+   no es cristal blanco sino un círculo tenue; al activarse pasa al acento. */
+.tahoe-theme-light .tahoe-cc-glass.tahoe-cc-circle {
+    background-color: rgba(0, 0, 0, 0.08);
+    background-gradient-start: rgba(0, 0, 0, 0.08);
+    background-gradient-end: rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
+}
+
+.tahoe-theme-light .tahoe-cc-glass.tahoe-cc-circle:hover {
+    background-color: rgba(0, 0, 0, 0.12);
+    background-gradient-start: rgba(0, 0, 0, 0.12);
+    background-gradient-end: rgba(0, 0, 0, 0.12);
+}
+
+.tahoe-theme-dark .tahoe-cc-glass.tahoe-cc-circle {
+    background-color: rgba(255, 255, 255, 0.16);
+    background-gradient-start: rgba(255, 255, 255, 0.16);
+    background-gradient-end: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-cc-glass.tahoe-cc-circle:hover {
+    background-color: rgba(255, 255, 255, 0.24);
+    background-gradient-start: rgba(255, 255, 255, 0.24);
+    background-gradient-end: rgba(255, 255, 255, 0.24);
+}
+
+/* Toggle activo (claro): círculo relleno del acento con icono blanco.
+   Toggle activo (oscuro): círculo blanco opaco con icono del acento. */
+.tahoe-theme-light .tahoe-cc-glass.tahoe-cc-on {
+    background-color: #0a84ff;
+    background-gradient-start: #0a84ff;
+    background-gradient-end: #0a84ff;
+    border-color: #0a84ff;
+    color: #ffffff;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
+}
+
+.tahoe-theme-dark .tahoe-cc-glass.tahoe-cc-on {
     background-color: rgba(255, 255, 255, 0.95);
     background-gradient-start: rgba(255, 255, 255, 0.95);
     background-gradient-end: rgba(255, 255, 255, 0.95);
@@ -348,22 +463,30 @@
 .tahoe-cc-media-title {
     font-size: 13px;
     font-weight: 600;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-media-artist {
     font-size: 11px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.75);
+    color: rgba(0, 0, 0, 0.55);
 }
 
 .tahoe-cc-media-art {
     border-radius: 8px;
-    background-color: rgba(255, 255, 255, 0.20);
+    background-color: rgba(0, 0, 0, 0.08);
     background-size: cover;
 }
 
+.tahoe-theme-dark .tahoe-cc-media-art {
+    background-color: rgba(255, 255, 255, 0.20);
+}
+
 .tahoe-cc-media-art-icon {
+    color: rgba(0, 0, 0, 0.40);
+}
+
+.tahoe-theme-dark .tahoe-cc-media-art-icon {
     color: rgba(255, 255, 255, 0.65);
 }
 
@@ -382,10 +505,18 @@
     border: none;
     box-shadow: none;
     padding: 0;
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .tahoe-cc-media-button {
     color: rgba(255, 255, 255, 0.95);
 }
 
 .tahoe-cc-media-button:hover {
+    background-color: rgba(0, 0, 0, 0.07);
+}
+
+.tahoe-theme-dark .tahoe-cc-media-button:hover {
     background-color: rgba(255, 255, 255, 0.16);
 }
 
@@ -394,13 +525,17 @@
 }
 
 .tahoe-cc-media-empty-icon {
+    color: rgba(0, 0, 0, 0.35);
+}
+
+.tahoe-theme-dark .tahoe-cc-media-empty-icon {
     color: rgba(255, 255, 255, 0.45);
 }
 
 .tahoe-cc-media-empty-label {
     font-size: 10px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.60);
+    color: rgba(0, 0, 0, 0.55);
 }
 
 /* --------------------------------------------------------------------------
@@ -425,20 +560,34 @@
     box-shadow: none;
     padding: 0;
     margin: 0;
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .tahoe-cc-slider-end {
     color: rgba(255, 255, 255, 0.92);
 }
 
 .tahoe-cc-slider-end-icon {
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .tahoe-cc-slider-end-icon {
     color: rgba(255, 255, 255, 0.92);
 }
 
-/* Slider propio: pista de 8px y tirador píldora */
+/* Slider propio: pista de 8px y tirador píldora.
+   El color (texto) permite a widgets.js elegir la pista clara u oscura. */
 .tahoe-cc-tahoeslider {
     height: 22px;
     min-height: 22px;
     background-color: transparent;
     border: none;
     box-shadow: none;
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .tahoe-cc-tahoeslider {
+    color: #ffffff;
 }
 
 /* --------------------------------------------------------------------------
@@ -455,7 +604,7 @@
 .tahoe-cc-footer-label {
     font-size: 12px;
     font-weight: 500;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 /* --------------------------------------------------------------------------
@@ -497,14 +646,23 @@
     min-width: 24px;
     min-height: 24px;
     border-radius: 12px;
-    background-color: rgba(255, 255, 255, 0.10);
+    background-color: rgba(0, 0, 0, 0.07);
     border: none;
     box-shadow: none;
     padding: 0;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-back-button:hover {
+    background-color: rgba(0, 0, 0, 0.12);
+}
+
+.tahoe-theme-dark .tahoe-cc-back-button {
+    background-color: rgba(255, 255, 255, 0.10);
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-cc-back-button:hover {
     background-color: rgba(255, 255, 255, 0.20);
 }
 
@@ -518,7 +676,7 @@
 .tahoe-cc-detail-title {
     font-size: 13px;
     font-weight: 700;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-sheet-title-row {
@@ -559,9 +717,13 @@
 .tahoe-cc-separator {
     height: 1px;
     min-height: 1px;
-    background-color: rgba(255, 255, 255, 0.18);
+    background-color: rgba(0, 0, 0, 0.10);
     border: none;
     margin: 3px 0;
+}
+
+.tahoe-theme-dark .tahoe-cc-separator {
+    background-color: rgba(255, 255, 255, 0.18);
 }
 
 .tahoe-cc-sheet-link {
@@ -570,18 +732,22 @@
     box-shadow: none;
     padding: 9px 12px;
     margin: 0;
-    color: #ffffff;
+    color: #1d1d1f;
     border-radius: 8px;
 }
 
 .tahoe-cc-sheet-link:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.tahoe-theme-dark .tahoe-cc-sheet-link:hover {
     background-color: rgba(255, 255, 255, 0.14);
 }
 
 .tahoe-cc-sheet-link-label {
     font-size: 13px;
     font-weight: 500;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-sheet-sound-popup .tahoe-cc-sheet-link {
@@ -592,7 +758,7 @@
 .tahoe-cc-empty-label {
     font-size: 12px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.72);
+    color: rgba(0, 0, 0, 0.55);
     padding: 10px 12px;
 }
 
@@ -619,7 +785,7 @@
     background-color: transparent;
     border: none;
     box-shadow: none;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-list-row-large {
@@ -628,6 +794,10 @@
 }
 
 .tahoe-cc-list-row:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.tahoe-theme-dark .tahoe-cc-list-row:hover {
     background-color: rgba(255, 255, 255, 0.15);
 }
 
@@ -641,35 +811,55 @@
 
 .tahoe-cc-list-circle {
     border-radius: 999px;
-    background-color: rgba(255, 255, 255, 0.22);
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.tahoe-theme-dark .tahoe-cc-list-circle {
+    background-color: rgba(255, 255, 255, 0.20);
 }
 
 .tahoe-cc-list-icon {
+    color: #1d1d1f;
+}
+
+.tahoe-theme-dark .tahoe-cc-list-icon {
     color: #ffffff;
 }
 
 .tahoe-cc-list-title {
     font-size: 13px;
     font-weight: 500;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-list-subtitle {
     font-size: 11px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(0, 0, 0, 0.55);
 }
 
 .tahoe-cc-list-suffix {
-    color: rgba(255, 255, 255, 0.72);
+    color: rgba(0, 0, 0, 0.45);
 }
 
 .tahoe-cc-list-check {
-    color: #ffffff;
+    color: #0a84ff;
 }
 
 .tahoe-cc-list-row-active .tahoe-cc-list-circle {
     background-color: #0a84ff;
+}
+
+.tahoe-theme-dark .tahoe-cc-list-row-active .tahoe-cc-list-circle {
+    background-color: #0a84ff;
+}
+
+.tahoe-cc-list-row-active .tahoe-cc-list-icon {
+    color: #ffffff;
+}
+
+.tahoe-theme-dark .tahoe-cc-list-row-active .tahoe-cc-list-icon {
+    color: #ffffff;
 }
 
 .tahoe-cc-list-row-active .tahoe-cc-list-title {
@@ -677,15 +867,19 @@
 }
 
 .tahoe-cc-list-row-active-white .tahoe-cc-list-circle {
+    background-color: #0a84ff;
+}
+
+.tahoe-theme-dark .tahoe-cc-list-row-active-white .tahoe-cc-list-circle {
     background-color: rgba(255, 255, 255, 0.95);
 }
 
 .tahoe-cc-list-row-active-white .tahoe-cc-list-icon {
-    color: #0a84ff;
+    color: #ffffff;
 }
 
-.tahoe-cc-list-row-active-white .tahoe-cc-list-check {
-    color: #ffffff;
+.tahoe-theme-dark .tahoe-cc-list-row-active-white .tahoe-cc-list-icon {
+    color: #0a84ff;
 }
 
 .tahoe-cc-scroll {
@@ -716,6 +910,10 @@
 }
 
 .tahoe-cc-switch-off {
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+.tahoe-theme-dark .tahoe-cc-switch-off {
     background-color: rgba(255, 255, 255, 0.30);
 }
 
@@ -743,7 +941,7 @@
 .tahoe-cc-battery-percentage {
     font-size: 15px;
     font-weight: 600;
-    color: #ffffff;
+    color: #1d1d1f;
 }
 
 .tahoe-cc-sheet-battery > .tahoe-cc-popover-subtitle {
@@ -753,7 +951,7 @@
 .tahoe-cc-info-line {
     font-size: 11px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.62);
+    color: rgba(0, 0, 0, 0.55);
     padding: 2px 14px 2px 14px;
 }
 
@@ -765,13 +963,13 @@
 .tahoe-cc-info-key {
     font-size: 11px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.62);
+    color: rgba(0, 0, 0, 0.55);
 }
 
 .tahoe-cc-info-value {
     font-size: 11px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.92);
+    color: #1d1d1f;
 }
 
 .tahoe-cc-sheet-battery .tahoe-cc-sheet-link {

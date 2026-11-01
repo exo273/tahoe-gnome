@@ -24,8 +24,6 @@ const WINDOW_WIDTH = 290;
 const IMAGE_MAX_WIDTH = 200;
 const IMAGE_MAX_HEIGHT = 240;
 
-const LIGHT_CLASS = 'tahoe-about-window-light';
-
 const FOOTER_TEXT =
     '™ y © 1996-2026 The GNOME Project y Fedora Project.\n' +
     'Todos los derechos reservados.';
@@ -189,8 +187,6 @@ export class AboutDialog {
 
         this._settings = null;
         this._settingsChangedId = 0;
-        this._colorSettings = null;
-        this._colorChangedId = 0;
 
         this._theme = null;
         this._cssFile = null;
@@ -284,20 +280,6 @@ export class AboutDialog {
                         this._refreshContent();
                 });
         }
-
-        try {
-            this._colorSettings = new Gio.Settings({
-                schema_id: 'org.gnome.desktop.interface',
-            });
-
-            this._colorChangedId = this._colorSettings.connect(
-                'changed::color-scheme', () => {
-                    if (!this._destroyed)
-                        this._applyColorScheme();
-                });
-        } catch (_e) {
-            this._colorSettings = null;
-        }
     }
 
     _getString(key) {
@@ -318,43 +300,10 @@ export class AboutDialog {
         }
         this._settingsChangedId = 0;
         this._settings = null;
-
-        if (this._colorSettings && this._colorChangedId) {
-            try {
-                this._colorSettings.disconnect(this._colorChangedId);
-            } catch (_e) {
-                // Ya desconectado.
-            }
-        }
-        this._colorChangedId = 0;
-        this._colorSettings = null;
     }
 
     _px(value) {
         return Math.max(1, Math.round(value * this._scaleFactor));
-    }
-
-    _applyColorScheme() {
-        if (!this._actor)
-            return;
-
-        let dark = true;
-
-        try {
-            if (this._colorSettings) {
-                dark = this._colorSettings.get_string('color-scheme') ===
-                    'prefer-dark';
-            }
-        } catch (_e) {
-            dark = true;
-        }
-
-        if (dark) {
-            if (this._actor.has_style_class_name(LIGHT_CLASS))
-                this._actor.remove_style_class_name(LIGHT_CLASS);
-        } else if (!this._actor.has_style_class_name(LIGHT_CLASS)) {
-            this._actor.add_style_class_name(LIGHT_CLASS);
-        }
     }
 
     /* -------------------------------------------------------------- */
@@ -598,8 +547,6 @@ export class AboutDialog {
     _refreshContent() {
         if (!this._actor || this._destroyed)
             return;
-
-        this._applyColorScheme();
 
         const title = this._getString('about-title').trim();
         this._title.text = title || SysInfo.getModel() || 'Equipo';

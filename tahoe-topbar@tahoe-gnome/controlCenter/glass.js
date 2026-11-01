@@ -65,12 +65,14 @@ function updateMaskUniforms(state) {
     }
 }
 
-function createBlur() {
+function createBlur(dark) {
     try {
         const blur = new Shell.BlurEffect();
         blur.mode = Shell.BlurMode.BACKGROUND;
         blur.radius = 30;
-        blur.brightness = 0.9;
+        // El cristal claro necesita un fondo más luminoso; el oscuro, más
+        // ahumado. Shell.BlurEffect.brightness se puede cambiar en vivo.
+        blur.brightness = dark ? 0.75 : 1.05;
         return blur;
     } catch (e) {
         console.error(`${LOG} No se pudo crear el desenfoque:`, e);
@@ -96,8 +98,9 @@ function createMask() {
  * @param {object} options
  * @param {number} options.radius radio lógico (CSS px) del módulo
  * @param {boolean} options.blur
+ * @param {boolean} options.dark modo oscuro (ajusta el brillo del desenfoque)
  */
-export function applyGlass(actor, {radius = 24, blur = true} = {}) {
+export function applyGlass(actor, {radius = 24, blur = true, dark = false} = {}) {
     if (!actor)
         return;
 
@@ -106,6 +109,7 @@ export function applyGlass(actor, {radius = 24, blur = true} = {}) {
     const state = {
         actor,
         radius,
+        dark: Boolean(dark),
         blur: null,
         mask: null,
         allocationId: 0,
@@ -115,7 +119,7 @@ export function applyGlass(actor, {radius = 24, blur = true} = {}) {
     actor._tahoeGlass = state;
 
     if (blur) {
-        const blurEffect = createBlur();
+        const blurEffect = createBlur(state.dark);
         if (blurEffect) {
             try {
                 actor.add_effect(blurEffect);
@@ -196,7 +200,7 @@ export function setGlassBlur(actor, blur) {
     if (!state)
         return;
 
-    applyGlass(actor, {radius: state.radius, blur});
+    applyGlass(actor, {radius: state.radius, blur, dark: state.dark});
 }
 
 export function isClutterShaderAvailable() {
