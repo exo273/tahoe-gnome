@@ -271,3 +271,110 @@ class TahoeGridLayout extends Clutter.LayoutManager {
         }
     }
 });
+
+/**
+ * Contenedor de un módulo en modo edición: el control ocupa toda la celda y
+ * el "−" / tirador se colocan en las esquinas. Se hace con un LayoutManager
+ * propio (no con translation_x/y) porque las traslaciones en un BinLayout
+ * dentro del BoxPointer hacían que St repintara el módulo desplazado.
+ */
+export const TahoeItemLayout = GObject.registerClass(
+class TahoeItemLayout extends Clutter.LayoutManager {
+    _preferred(container) {
+        const child = container.get_first_child();
+        return child ?? null;
+    }
+
+    vfunc_get_preferred_width(container, forHeight) {
+        const child = this._preferred(container);
+        if (!child)
+            return [0, 0];
+        return child.get_preferred_width(forHeight);
+    }
+
+    vfunc_get_preferred_height(container, forWidth) {
+        const child = this._preferred(container);
+        if (!child)
+            return [0, 0];
+        return child.get_preferred_height(forWidth);
+    }
+
+    vfunc_allocate(container, box) {
+        const children = container.get_children();
+        if (children.length === 0)
+            return;
+
+        const [first, ...overlays] = children;
+        first.allocate(box);
+
+        const width = box.x2 - box.x1;
+        const height = box.y2 - box.y1;
+        const decoBox = new Clutter.ActorBox();
+
+        for (const child of overlays) {
+            let size = 20;
+            let x = 0;
+            let y = 0;
+
+            if (child.has_style_class_name?.('tahoe-cc-edit-minus')) {
+                size = 18;
+                x = 2;
+                y = 2;
+            } else if (child.has_style_class_name?.('tahoe-cc-edit-resize')) {
+                size = 20;
+                x = Math.max(0, width - size - 2);
+                y = Math.max(0, height - size - 2);
+            } else {
+                child.allocate(box);
+                continue;
+            }
+
+            decoBox.set_origin(box.x1 + x, box.y1 + y);
+            decoBox.set_size(size, size);
+            child.allocate(decoBox);
+        }
+    }
+});
+
+/**
+ * Capa absoluta del editor: los hijos normales se colocan en (_overlayX,
+ * _overlayY) y el capturador ocupa todo. Sustituye a BinLayout para que el
+ * menú contextual no acabe centrado y para no depender de translation_x/y.
+ */
+export const TahoeOverlayLayout = GObject.registerClass(
+class TahoeOverlayLayout extends Clutter.LayoutManager {
+    vfunc_get_preferred_width(_container, _forHeight) {
+        return [0, 0];
+    }
+
+    vfunc_get_preferred_height(_container, _forWidth) {
+        return [0, 0];
+    }
+
+    vfunc_allocate(container, box) {
+        const [originX, originY] = container.get_transformed_position();
+
+        for (const child of container.get_children()) {
+            if (child.has_style_class_name?.('tahoe-cc-context-catcher')) {
+                child.allocate(box);
+                continue;
+            }
+
+            const [, , width, height] = child.get_preferred_size();
+            const childBox = new Clutter.ActorBox();
+
+            if (child._overlayStageX !== undefined) {
+                childBox.set_origin(
+                    Math.round(child._overlayStageX - originX),
+                    Math.round(child._overlayStageY - originY));
+            } else {
+                childBox.set_origin(
+                    box.x1 + Math.round(child._overlayX ?? 0),
+                    box.y1 + Math.round(child._overlayY ?? 0));
+            }
+
+            childBox.set_size(Math.max(1, width), Math.max(1, height));
+            child.allocate(childBox);
+        }
+    }
+});

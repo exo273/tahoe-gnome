@@ -100,14 +100,6 @@ function mediaAvailable(cc) {
     return cc._getBoolean('control-center-show-now-playing', true);
 }
 
-function nightLightSupported() {
-    try {
-        return global.backend.get_monitor_manager().night_light_supported !== false;
-    } catch (_e) {
-        return true;
-    }
-}
-
 function batterySubtitle(battery) {
     if (!battery?.present)
         return '';
@@ -557,7 +549,9 @@ function nightLightControl(cc) {
         icon: 'night-light-symbolic',
         sizes: ['small', 'medium'],
         defaultSize: 'small',
-        available: () => Boolean(cc._colorSettings) && nightLightSupported(),
+        // La clave de gsd-color existe siempre; no se depende de que el
+        // backend headless anuncie night_light_supported.
+        available: () => Boolean(cc._colorSettings),
         create: size => {
             const toggle = () => cc._toggleNightLight();
 

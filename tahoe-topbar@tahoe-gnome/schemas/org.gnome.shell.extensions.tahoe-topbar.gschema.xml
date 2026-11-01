@@ -133,7 +133,8 @@
     </key>
     <key name="control-center-show-sound-icon" type="b">
       <default>true</default>
-      <summary>Mostrar el indicador de sonido en la barra</summary>
+      <summary>Obsoleta: se conserva sólo para migrar a menubar-controls</summary>
+      <description>Las versiones anteriores usaban esta clave para ocultar el altavoz. Ahora el altavoz se controla con la presencia de «sound» en menubar-controls; al arrancar se migra el valor y se vuelve a poner a true.</description>
     </key>
     <key name="control-center-layout" type="s">
       <default>'[{"id":"wifi","size":"medium"},{"id":"now-playing","size":"large"},{"id":"bluetooth","size":"small"},{"id":"airplane","size":"small"},{"id":"focus","size":"medium"},{"id":"dark-mode","size":"small"},{"id":"night-light","size":"small"},{"id":"display","size":"wide"},{"id":"sound","size":"wide"},{"id":"power-profile","size":"small"},{"id":"screenshot","size":"small"},{"id":"lock","size":"small"},{"id":"settings","size":"small"}]'</default>
@@ -144,6 +145,16 @@
       <default>[]</default>
       <summary>Controles externos ya descubiertos</summary>
       <description>Ids de QuickToggle/QuickMenuToggle/QuickSlider de otras extensiones que ya se añadieron automáticamente al layout. Evita volver a añadirlos si el usuario los quita.</description>
+    </key>
+    <key name="menubar-controls" type="s">
+      <default>'["battery","sound","wifi"]'</default>
+      <summary>Controles mostrados en la barra de menús</summary>
+      <description>Lista JSON ordenada de ids. battery, sound y wifi son los indicadores existentes; el resto se crea desde el registro. El orden de la lista es el orden en la barra, a la izquierda del botón del Centro de control.</description>
+    </key>
+    <key name="control-center-catalog" type="s">
+      <default>'[]'</default>
+      <summary>Catálogo de controles calculado por el shell</summary>
+      <description>Lista JSON de {id,name,category,icon,sizes,defaultSize,external}. La usan las preferencias (otro proceso) para conocer también los controles externos.</description>
     </key>
     <!-- ===== Reloj ===== -->
     <key name="move-clock-right" type="b">
