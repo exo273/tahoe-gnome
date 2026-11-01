@@ -5,5 +5,5 @@
   "version": 1,
   "shell-version": ["48", "49", "50"],
   "settings-schema": "org.gnome.shell.extensions.tahoe-topbar",
-  "url": "https://github.com/tahoe-gnome/tahoe-topbar"
+  "url": "https://github.com/exo273/tahoe-gnome"
 }
