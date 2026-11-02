@@ -1197,32 +1197,52 @@ class BatteryIcon extends St.DrawingArea {
 });
 
 /**
- * Glifo del Centro de control: dos pastillas con un punto cada una.
+ * Dos interruptores de contorno con pulsadores desplazados, como el glifo de
+ * Tahoe. El dibujo usa el color del panel para seguir el modo claro/oscuro.
  */
-export function createControlCenterGlyph() {
-    const glyph = new St.BoxLayout({
-        style_class: 'tahoe-cc-glyph',
-        orientation: Clutter.Orientation.VERTICAL,
-        x_align: Clutter.ActorAlign.CENTER,
-        y_align: Clutter.ActorAlign.CENTER,
-    });
-
-    for (let i = 0; i < 2; i++) {
-        const pill = new St.Bin({
-            style_class: 'tahoe-cc-glyph-pill',
+const ControlCenterGlyph = GObject.registerClass(
+class ControlCenterGlyph extends St.DrawingArea {
+    _init() {
+        super._init({
+            style_class: 'tahoe-cc-glyph',
+            width: 22,
+            height: 19,
             x_align: Clutter.ActorAlign.CENTER,
-        });
-
-        const knob = new St.Widget({
-            style_class: 'tahoe-cc-glyph-knob',
-            x_align: i === 0 ? Clutter.ActorAlign.END : Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER,
+            reactive: false,
         });
-        pill.set_child(knob);
-        glyph.add_child(pill);
+        this.connect('repaint', () => this._draw());
+        this.connect('style-changed', () => this.queue_repaint());
     }
 
-    return glyph;
+    _draw() {
+        const cr = this.get_context();
+        const [width, height] = this.get_surface_size();
+        const color = this.get_theme_node().get_foreground_color();
+        cr.save();
+        cr.scale(width / 22, height / 19);
+        cr.setSourceColor(color);
+        cr.setLineWidth(1.45);
+
+        for (const [y, knobX] of [[4.75, 15], [14.25, 7]]) {
+            cr.newSubPath();
+            cr.arc(5.25, y, 3.15, Math.PI / 2, 3 * Math.PI / 2);
+            cr.lineTo(16.75, y - 3.15);
+            cr.arc(16.75, y, 3.15, -Math.PI / 2, Math.PI / 2);
+            cr.closePath();
+            cr.stroke();
+
+            cr.newSubPath();
+            cr.arc(knobX, y, 2.65, 0, 2 * Math.PI);
+            cr.fill();
+        }
+        cr.restore();
+        cr.$dispose();
+    }
+});
+
+export function createControlCenterGlyph() {
+    return new ControlCenterGlyph();
 }
 
 export {ICON_STYLE};

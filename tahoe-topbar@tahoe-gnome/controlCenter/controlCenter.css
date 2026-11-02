@@ -59,30 +59,9 @@
 }
 
 #panel.tahoe-panel .tahoe-cc-glyph {
-    spacing: 2px;
-}
-
-#panel.tahoe-panel .tahoe-cc-glyph-pill {
-    width: 18px;
-    height: 7px;
-    border-radius: 4px;
-    background-color: rgba(255, 255, 255, 0.92);
-}
-
-#panel.tahoe-panel .tahoe-cc-glyph-knob {
-    width: 5px;
-    height: 5px;
-    border-radius: 3px;
-    margin: 1px 2px;
-    background-color: rgba(20, 20, 22, 0.94);
-}
-
-#panel.tahoe-panel.tahoe-text-dark .tahoe-cc-glyph-pill {
-    background-color: rgba(0, 0, 0, 0.82);
-}
-
-#panel.tahoe-panel.tahoe-text-dark .tahoe-cc-glyph-knob {
-    background-color: rgba(255, 255, 255, 0.95);
+    width: 22px;
+    height: 19px;
+    color: inherit;
 }
 
 /* --------------------------------------------------------------------------
