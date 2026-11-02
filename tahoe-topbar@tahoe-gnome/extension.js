@@ -17,6 +17,7 @@ import {attachUpdatesBadge} from './menubar/updates.js';
 import {TahoeControlCenter} from './controlCenter/controlCenter.js';
 import {TahoeDock} from './dock/dock.js';
 import {TahoeLaunchpad} from './launchpad/launchpad.js';
+import {TahoeLaunchpadShortcuts} from './launchpad/shortcuts.js';
 import {TahoeMinimizeAnimation} from './dock/animation.js';
 import {LiquidGlassEngine, glassLook, stageRect} from './liquidGlass.js';
 import {ApplicationManager} from './vendor/liquid-glass/applicationManager.js';
@@ -116,6 +117,7 @@ export default class TahoeTopBarExtension extends Extension {
         this._controlCenter = null;
         this._dock = null;
         this._launchpad = null;
+        this._launchpadShortcuts = null;
         this._minimizeAnimation = null;
         this._glassEngine = null;
         this._glassListeners = new Set();
@@ -351,17 +353,46 @@ export default class TahoeTopBarExtension extends Extension {
             this._destroyLaunchpad();
             return;
         }
-        if (this._launchpad)
+        if (!this._launchpad) {
+            try {
+                this._launchpad = new TahoeLaunchpad(this);
+            } catch (error) {
+                console.error('[tahoe-topbar] No se pudo crear Launchpad:', error);
+                this._destroyLaunchpad();
+                return;
+            }
+        }
+        this._applyLaunchpadShortcuts();
+    }
+
+    _applyLaunchpadShortcuts() {
+        if (!this._launchpad) {
+            this._destroyLaunchpadShortcuts();
+            return;
+        }
+        if (this._launchpadShortcuts)
             return;
         try {
-            this._launchpad = new TahoeLaunchpad(this);
+            this._launchpadShortcuts = new TahoeLaunchpadShortcuts(this);
         } catch (error) {
-            console.error('[tahoe-topbar] No se pudo crear Launchpad:', error);
-            this._destroyLaunchpad();
+            console.error('[tahoe-topbar] No se pudieron registrar los atajos de Launchpad:', error);
+            this._launchpadShortcuts = null;
         }
     }
 
+    _destroyLaunchpadShortcuts() {
+        if (!this._launchpadShortcuts)
+            return;
+        try {
+            this._launchpadShortcuts.destroy();
+        } catch (error) {
+            console.error('[tahoe-topbar] Error al destruir los atajos de Launchpad:', error);
+        }
+        this._launchpadShortcuts = null;
+    }
+
     _destroyLaunchpad() {
+        this._destroyLaunchpadShortcuts();
         if (!this._launchpad)
             return;
         this._launchpad.destroy();
