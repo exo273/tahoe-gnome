@@ -19,6 +19,11 @@ import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 
 export const DOCK_ITEM_STYLE = 'tahoe-dock-item';
 
+// Escala del icono flotante durante un arrastre (estilo Dash to Dock) y
+// opacidad a la que se atenúa el icono de origen mientras se arrastra.
+const DRAG_ICON_SCALE = 1.15;
+const DRAG_SOURCE_OPACITY = 0.4;
+
 function safeScale(actor, scale) {
     if (!actor || typeof actor.set_scale !== 'function')
         return;
@@ -277,6 +282,10 @@ export class DockAppItem extends DockItemBase {
         this._draggableSignalIds = [];
         this._dragging = false;
         this._ignoreClickUntil = 0;
+        // El dock crea un proxy flotante propio sobre top chrome; si no puede,
+        // el actor que devuelve getDragActor() se deja visible como respaldo.
+        this._nativeDragActorVisible = true;
+        this._dragSourceOpacityBefore = null;
 
         // DND entrega el _delegate del actor como fuente a todos los targets.
         // El overview (Workspace.acceptDrop) acepta cualquier fuente con
@@ -319,6 +328,7 @@ export class DockAppItem extends DockItemBase {
         this._draggableSignalIds.push(
             this._draggable.connect('drag-begin', () => {
                 this._dragging = true;
+                this._setDragSourceDimmed(true);
                 this._dock?._hideTooltip?.(this);
                 this._dock?._onItemDragBegin?.(this);
             }),
@@ -327,6 +337,9 @@ export class DockAppItem extends DockItemBase {
             }),
             this._draggable.connect('drag-end', (_draggable, _time, success) => {
                 this._dragging = false;
+                // También en cancelación: drag-end llega después del snap-back,
+                // así que no se ve un salto de opacidad durante la animación.
+                this._setDragSourceDimmed(false);
                 // El botón puede emitir ::clicked después del drag-end (por
                 // ejemplo al soltar fuera del dock): ignorarlo para no
                 // activar/abrir la app al terminar un arrastre.
@@ -353,15 +366,95 @@ export class DockAppItem extends DockItemBase {
             !this.app.is_window_backed() && this._dock._canEditFavorites();
     }
 
-    getDragActor() {
+    /*
+     * Actor flotante compuesto: icono a doble resolución (para que no se vea
+     * borroso al escalarlo), sombra sutil y escala 1.15. El dock lo usa como
+     * proxy independiente sobre top chrome; si ese proxy no se puede crear,
+     * DND mueve este mismo actor como respaldo visible.
+     */
+    _createDragActor(visible) {
+        const size = this._dock?.iconSizePx ?? 48;
+        const hiRes = Math.max(size * 2, 96);
+
+        let icon = null;
         try {
-            return this.app.create_icon_texture(this._dock.iconSizePx);
-        } catch (_e) {
-            return new St.Icon({
+            icon = this.app.create_icon_texture(hiRes);
+        } catch (e) {
+            console.error(`[tahoe-dock] No se pudo crear el icono de arrastre de ` +
+                `${this.app.get_id()}:`, e);
+        }
+        if (!icon) {
+            icon = new St.Icon({
                 gicon: this._dock.fallbackIcon,
-                icon_size: this._dock.iconSizePx,
+                icon_size: hiRes,
             });
         }
+        // El actor mide lo mismo que un icono del dock (así DND lo centra bajo
+        // el puntero) y contiene un icono a 2x centrado y reducido a la mitad.
+        // FixedLayout es necesario: BinLayout forzaría la allocation del hijo
+        // al tamaño del padre y el icono quedaría borroso o a la mitad.
+        icon.set_size(hiRes, hiRes);
+        icon.set_position((size - hiRes) / 2, (size - hiRes) / 2);
+        icon.set_pivot_point(0.5, 0.5);
+        icon.set_scale(0.5, 0.5);
+        icon.reactive = false;
+
+        const actor = new St.Widget({
+            name: 'tahoe-dock-drag-actor',
+            style_class: 'tahoe-dock-drag-actor',
+            style: 'box-shadow: 0 6px 14px rgba(0, 0, 0, 0.30);' +
+                'border-radius: 24%;',
+            layout_manager: new Clutter.FixedLayout(),
+            width: size,
+            height: size,
+            pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
+            reactive: false,
+            can_focus: false,
+            track_hover: false,
+            visible,
+        });
+        actor.set_scale(DRAG_ICON_SCALE, DRAG_ICON_SCALE);
+        actor.add_child(icon);
+        return actor;
+    }
+
+    getDragActor() {
+        return this._createDragActor(this._nativeDragActorVisible);
+    }
+
+    createDragProxy() {
+        return this._createDragActor(true);
+    }
+
+    setNativeDragActorVisible(visible) {
+        this._nativeDragActorVisible = Boolean(visible);
+        const actor = this._draggable?._dragActor;
+        if (!actor)
+            return;
+        try {
+            actor.visible = this._nativeDragActorVisible;
+        } catch (_e) {
+            // El actor nativo ya fue destruido por DND.
+        }
+    }
+
+    _setDragSourceDimmed(dimmed) {
+        if (this._destroyed || !this._icon)
+            return;
+
+        if (dimmed) {
+            if (this._dragSourceOpacityBefore !== null)
+                return;
+            this._dragSourceOpacityBefore = this._icon.opacity;
+            this._icon.opacity = Math.round(this._dragSourceOpacityBefore *
+                DRAG_SOURCE_OPACITY);
+            return;
+        }
+
+        if (this._dragSourceOpacityBefore === null)
+            return;
+        this._icon.opacity = this._dragSourceOpacityBefore;
+        this._dragSourceOpacityBefore = null;
     }
 
     getDragActorSource() {

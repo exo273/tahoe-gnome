@@ -102,6 +102,17 @@ export class TahoeDock {
         this._dropIndicator = null;
         this._dropIndicatorIndex = -1;
         this._dragMonitor = null;
+        // Proxy flotante propio, por encima de top chrome. DND sigue siendo
+        // quien gestiona el grasp, los targets y el drop; su actor se mantiene
+        // invisible mientras este proxy exista.
+        this._dragProxy = null;
+        this._dragProxyItem = null;
+        this._dragProxyTimer = 0;
+        this._dragProxyChrome = false;
+        this._dragProxyShown = false;
+        this._dragProxyFinishing = false;
+        this._dragProxyBaseScale = 1;
+        this._dragProxyHome = null;
 
         this._signalIds = [];
         this._windowSignalIds = [];
@@ -990,11 +1001,9 @@ export class TahoeDock {
             iconSize,
             label: count > 0 ? `Descargas (${count})` : 'Descargas',
             styleClass: 'tahoe-dock-downloads',
-            badge: true,
             onClick: () => this._openItemMenu(item),
             onSecondary: () => this._openFolder(this._downloads?.folder),
         });
-        item.setBadge(count);
         this._downloadsItem = item;
         this._controlItems.push(item);
         return item;
@@ -1041,11 +1050,9 @@ export class TahoeDock {
             iconSize: this._iconSizePx,
             label: count > 0 ? `Papelera (${count})` : 'Papelera',
             styleClass: 'tahoe-dock-trash',
-            badge: true,
             onClick: () => this._openFolder(Gio.File.new_for_uri('trash:///')),
             onSecondary: () => this._openItemMenu(item),
         });
-        item.setBadge(count);
         this._trashItem = item;
         this._controlItems.push(item);
         return item;
@@ -2102,6 +2109,251 @@ export class TahoeDock {
         return false;
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Proxy visual del arrastre                                           */
+    /* ------------------------------------------------------------------ */
+
+    _raiseDragProxy() {
+        const proxy = this._dragProxy;
+        if (!proxy || !proxy.visible)
+            return;
+        const group = Main.layoutManager.uiGroup ?? Main.uiGroup;
+        try {
+            if (proxy.get_parent() === group && group.get_last_child() !== proxy)
+                group.set_child_above_sibling(proxy, null);
+        } catch (_e) {
+            // El actor salió de uiGroup durante el apagado.
+        }
+    }
+
+    _syncDragProxy() {
+        this._dragProxyTimer = 0;
+        const proxy = this._dragProxy;
+        const item = this._dragProxyItem;
+        if (this._destroyed || !proxy || !item ||
+            this._dragSession?.item !== item) {
+            return GLib.SOURCE_REMOVE;
+        }
+
+        // DND crea _dragActor después de emitir drag-begin. Su posición es la
+        // fuente de verdad: el proxy la copia cada frame y no depende de que
+        // llegue un movimiento ni de que el actor nativo sea visible.
+        const native = item._draggable?._dragActor;
+        if (!native) {
+            this._dragProxyTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16,
+                () => this._syncDragProxy());
+            return GLib.SOURCE_REMOVE;
+        }
+
+        try {
+            const x = Math.round(native.x);
+            const y = Math.round(native.y);
+            proxy.set_position(x, y);
+            if (!this._dragProxyShown) {
+                this._dragProxyShown = true;
+                // Pequeña entrada: evita el "pop" seco y deja ver la elevación.
+                const baseScale = this._dragProxyBaseScale;
+                proxy.set_scale(baseScale * 0.82, baseScale * 0.82);
+                proxy.opacity = 0;
+                proxy.show();
+                proxy.ease({
+                    opacity: 255,
+                    scale_x: baseScale,
+                    scale_y: baseScale,
+                    duration: 130,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                });
+            }
+            this._raiseDragProxy();
+        } catch (e) {
+            console.error(`${LOG} No se pudo seguir el icono de arrastre:`, e);
+            this._finishDragProxy(false);
+            return GLib.SOURCE_REMOVE;
+        }
+
+        this._dragProxyTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16,
+            () => this._syncDragProxy());
+        return GLib.SOURCE_REMOVE;
+    }
+
+    _startDragProxy(item) {
+        this._destroyDragProxy();
+        if (this._destroyed || !item || typeof item.createDragProxy !== 'function')
+            return false;
+
+        let proxy = null;
+        try {
+            proxy = item.createDragProxy();
+        } catch (e) {
+            console.error(`${LOG} No se pudo crear el proxy de arrastre:`, e);
+            return false;
+        }
+        if (!proxy)
+            return false;
+
+        let added = false;
+        try {
+            Main.layoutManager.addTopChrome(proxy, {
+                affectsStruts: false,
+                trackFullscreen: false,
+            });
+            this._dragProxyChrome = true;
+            added = true;
+        } catch (e) {
+            console.warn(`${LOG} addTopChrome falló para el proxy; ` +
+                `se usa uiGroup:`, e);
+        }
+        if (!added) {
+            try {
+                // addTopChrome pudo añadir el actor y fallar al trackearlo.
+                if (!proxy.get_parent())
+                    Main.uiGroup.add_child(proxy);
+                this._dragProxyChrome = false;
+                added = true;
+            } catch (e) {
+                console.error(`${LOG} No se pudo añadir el proxy de arrastre:`, e);
+                proxy.destroy();
+                return false;
+            }
+        }
+
+        try {
+            // No debe interceptar el picking de DND (PickMode.ALL).
+            Shell.util_set_hidden_from_pick(proxy, true);
+        } catch (e) {
+            console.error(`${LOG} No se pudo ocultar el proxy del picking; ` +
+                `se usa el actor nativo:`, e);
+            try {
+                if (this._dragProxyChrome)
+                    Main.layoutManager.removeChrome(proxy);
+                else
+                    proxy.get_parent()?.remove_child(proxy);
+            } catch (_e2) {
+                // ya estaba fuera del chrome
+            }
+            proxy.destroy();
+            return false;
+        }
+
+        this._dragProxy = proxy;
+        this._dragProxyItem = item;
+        this._dragProxyShown = false;
+        this._dragProxyFinishing = false;
+        this._dragProxyBaseScale = proxy.scale_x || 1;
+        proxy.visible = false;
+        proxy.opacity = 0;
+        proxy.reactive = false;
+        this._dragProxyHome = item.getIconGeometry?.() ?? null;
+        this._raiseDragProxy();
+
+        this._dragProxyTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16,
+            () => this._syncDragProxy());
+        GLib.Source.set_name_by_id(this._dragProxyTimer,
+            '[tahoe-dock] drag proxy');
+        return true;
+    }
+
+    _finishDragProxy(success) {
+        if (this._dragProxyTimer) {
+            GLib.source_remove(this._dragProxyTimer);
+            this._dragProxyTimer = 0;
+        }
+
+        const proxy = this._dragProxy;
+        if (!proxy || this._dragProxyFinishing)
+            return;
+        this._dragProxyFinishing = true;
+
+        if (!this._dragProxyShown) {
+            this._destroyDragProxy();
+            return;
+        }
+
+        if (success) {
+            // El drop ya se aceptó: el icono se desvanece en el puntero.
+            const scale = Math.max(0.75, proxy.scale_x * 0.82);
+            proxy.ease({
+                opacity: 0,
+                scale_x: scale,
+                scale_y: scale,
+                duration: 130,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                onComplete: () => this._destroyDragProxy(),
+            });
+            return;
+        }
+
+        // Cancelación (Esc, drop no aceptado): vuela de vuelta al icono de
+        // origen mientras DND hace lo mismo con su actor invisible.
+        let target = this._dragProxyHome;
+        try {
+            const live = this._dragProxyItem?.getIconGeometry?.();
+            if (live)
+                target = live;
+        } catch (_e) {
+            // El origen ya se destruyó; se usa la geometría guardada.
+        }
+
+        const width = proxy.width || this._iconSizePx;
+        const targetScale = target?.width > 0
+            ? clamp(target.width / width, 0.25, 1.6)
+            : Math.max(0.35, proxy.scale_x);
+        const targetX = target
+            ? target.x + target.width / 2 - width / 2
+            : proxy.x;
+        const targetY = target
+            ? target.y + target.height / 2 - width / 2
+            : proxy.y;
+
+        proxy.ease({
+            x: targetX,
+            y: targetY,
+            opacity: 0,
+            scale_x: targetScale,
+            scale_y: targetScale,
+            duration: 220,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => this._destroyDragProxy(),
+        });
+    }
+
+    _destroyDragProxy() {
+        if (this._dragProxyTimer) {
+            try {
+                GLib.source_remove(this._dragProxyTimer);
+            } catch (_e) {
+                // La fuente ya se ejecutó.
+            }
+            this._dragProxyTimer = 0;
+        }
+
+        const proxy = this._dragProxy;
+        const wasChrome = this._dragProxyChrome;
+        this._dragProxy = null;
+        this._dragProxyItem = null;
+        this._dragProxyChrome = false;
+        this._dragProxyShown = false;
+        this._dragProxyFinishing = false;
+        this._dragProxyBaseScale = 1;
+        this._dragProxyHome = null;
+        if (!proxy)
+            return;
+
+        try {
+            if (wasChrome)
+                Main.layoutManager.removeChrome(proxy);
+            else
+                proxy.get_parent()?.remove_child(proxy);
+        } catch (_e) {
+            // El actor ya estaba fuera del chrome o destruido.
+        }
+        try {
+            proxy.destroy();
+        } catch (_e) {
+            // Ya estaba destruido.
+        }
+    }
+
     _onItemDragBegin(item) {
         if (this._destroyed || !item)
             return;
@@ -2113,14 +2365,19 @@ export class TahoeDock {
             favorite: Boolean(item.isFavorite),
             drop: null,
         };
+        // Si el proxy no se puede crear, el actor compuesto que devuelve DND
+        // queda visible como respaldo.
+        const proxyReady = this._startDragProxy(item);
+        item.setNativeDragActorVisible?.(!proxyReady);
         console.log(`${LOG} drag-begin ${item.app?.get_id?.() ?? '?'} ` +
-            `favorito=${item.isFavorite}`);
+            `favorito=${item.isFavorite} proxy=${proxyReady}`);
     }
 
     _onItemDragCancelled(item) {
         if (this._destroyed || this._dragSession?.item !== item)
             return;
         this._hideDropIndicator();
+        this._finishDragProxy(false);
         console.log(`${LOG} drag-cancelled ${item.app?.get_id?.() ?? '?'}`);
     }
 
@@ -2131,6 +2388,9 @@ export class TahoeDock {
             return;
         this._dragSession = null;
         this._hideDropIndicator();
+        // Sin origen no hay a dónde volver: retirar el proxy de inmediato para
+        // no dejar un icono fantasma sobre la pantalla.
+        this._destroyDragProxy();
         console.log(`${LOG} drag-session limpiada al destruir ` +
             `${item.app?.get_id?.() ?? '?'}`);
     }
@@ -2139,6 +2399,7 @@ export class TahoeDock {
         const session = this._dragSession;
         this._dragSession = null;
         this._hideDropIndicator();
+        this._finishDragProxy(Boolean(success));
 
         if (!session || session.item !== item)
             return;
@@ -2524,7 +2785,6 @@ export class TahoeDock {
         const count = this._downloads?.count ?? 0;
         const item = this._downloadsItem;
         if (item && !item._destroyed) {
-            item.setBadge(count);
             item.setName(count > 0 ? `Descargas (${count})` : 'Descargas');
             if (item._menu?.isOpen) {
                 populateDownloadsMenu(item._menu, this._downloads, {
@@ -2541,7 +2801,6 @@ export class TahoeDock {
         const count = this._trash?.count ?? 0;
         const item = this._trashItem;
         if (item && !item._destroyed) {
-            item.setBadge(count);
             item.setName(count > 0 ? `Papelera (${count})` : 'Papelera');
 
             let theme = null;
@@ -2860,6 +3119,7 @@ export class TahoeDock {
             this._dragMonitor = null;
         }
         this._dragSession = null;
+        this._destroyDragProxy();
         this._destroyDropIndicator();
 
         this._removeReserve();
