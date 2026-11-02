@@ -936,6 +936,10 @@ export class TahoeDock {
     }
 
     _openAppGrid() {
+        if (this._extension?._launchpad) {
+            this._extension._launchpad.toggle();
+            return;
+        }
         try {
             if (Main.overview.visible) {
                 // El dash nativo sigue existiendo aunque esté oculto: su

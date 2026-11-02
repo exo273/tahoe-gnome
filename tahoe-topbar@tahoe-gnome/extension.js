@@ -16,6 +16,7 @@ import {TahoeMenuBar} from './menubar/menuBar.js';
 import {attachUpdatesBadge} from './menubar/updates.js';
 import {TahoeControlCenter} from './controlCenter/controlCenter.js';
 import {TahoeDock} from './dock/dock.js';
+import {TahoeLaunchpad} from './launchpad/launchpad.js';
 import {TahoeMinimizeAnimation} from './dock/animation.js';
 import {LiquidGlassEngine, glassLook, stageRect} from './liquidGlass.js';
 import {ApplicationManager} from './vendor/liquid-glass/applicationManager.js';
@@ -114,6 +115,7 @@ export default class TahoeTopBarExtension extends Extension {
         this._menuBar = null;
         this._controlCenter = null;
         this._dock = null;
+        this._launchpad = null;
         this._minimizeAnimation = null;
         this._glassEngine = null;
         this._glassListeners = new Set();
@@ -161,6 +163,7 @@ export default class TahoeTopBarExtension extends Extension {
         this._applyClockSettings();
         this._applyControlCenter();
         this._applyDock();
+        this._applyLaunchpad();
         this._updateLogo();
         this._updateSolidState();
 
@@ -168,6 +171,7 @@ export default class TahoeTopBarExtension extends Extension {
     }
 
     disable() {
+        this._destroyLaunchpad();
         this._destroyDock();
         this._destroyGlass();
 
@@ -338,6 +342,30 @@ export default class TahoeTopBarExtension extends Extension {
             console.error('[tahoe-topbar] Error al destruir el Centro de control:', error);
         }
         this._controlCenter = null;
+    }
+
+    _applyLaunchpad() {
+        const wanted = this._settings?.get_boolean('launchpad-enabled') &&
+            Main.sessionMode.currentMode === 'user';
+        if (!wanted) {
+            this._destroyLaunchpad();
+            return;
+        }
+        if (this._launchpad)
+            return;
+        try {
+            this._launchpad = new TahoeLaunchpad(this);
+        } catch (error) {
+            console.error('[tahoe-topbar] No se pudo crear Launchpad:', error);
+            this._destroyLaunchpad();
+        }
+    }
+
+    _destroyLaunchpad() {
+        if (!this._launchpad)
+            return;
+        this._launchpad.destroy();
+        this._launchpad = null;
     }
 
     _applyDock() {
@@ -1803,6 +1831,7 @@ export default class TahoeTopBarExtension extends Extension {
 
         if (!isUser) {
             this._destroyApplicationGlass();
+            this._destroyLaunchpad();
             this._destroyDock();
             this._destroyControlCenter();
             this._destroyPanelGlass();
@@ -1817,6 +1846,7 @@ export default class TahoeTopBarExtension extends Extension {
         this._applyClockSettings();
         this._applyControlCenter();
         this._applyDock();
+        this._applyLaunchpad();
         this._updateSolidState();
         this._syncApplicationGlass();
     }
@@ -1853,6 +1883,9 @@ export default class TahoeTopBarExtension extends Extension {
             break;
         case 'dock-enabled':
             this._applyDock();
+            break;
+        case 'launchpad-enabled':
+            this._applyLaunchpad();
             break;
         case 'glass-style':
             this._applyGlassStyle();

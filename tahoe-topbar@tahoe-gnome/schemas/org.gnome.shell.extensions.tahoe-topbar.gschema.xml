@@ -493,6 +493,12 @@
       <summary>Color del borde del menú del escritorio</summary>
     </key>
 
+    <!-- ===== Launchpad Tahoe ===== -->
+    <key name="launchpad-enabled" type="b">
+      <default>true</default>
+      <summary>Reemplazar la vista de aplicaciones del dock con Launchpad Tahoe</summary>
+    </key>
+
     <!-- ===== Dock Tahoe ===== -->
     <key name="dock-enabled" type="b"><default>true</default><summary>Activar dock Tahoe</summary></key>
     <key name="dock-icon-size" type="i"><range min="16" max="96"/><default>48</default><summary>Tamaño de iconos del dock</summary></key>

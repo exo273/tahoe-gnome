@@ -514,6 +514,9 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
             description: _('Reemplaza el dash de GNOME y desactiva Dash to Dock al encenderlo. No lo reactiva automáticamente.'),
         });
         general.add(this._switchRow(settings, 'dock-enabled', _('Activar el dock Tahoe')));
+        general.add(this._switchRow(settings, 'launchpad-enabled',
+            _('Usar Launchpad Tahoe'),
+            _('Reemplaza la cuadrícula de GNOME con una ventana de aplicaciones y búsqueda Spotlight.')));
         general.add(this._stringComboRow(settings, 'dock-position', _('Posición'), [
             {value: 'bottom', label: 'Abajo'},
             {value: 'left', label: 'Izquierda'},
