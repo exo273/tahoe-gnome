@@ -24,9 +24,13 @@
  * alfa de primer plano para que la curva se lea sin subir el velo de la
  * ventana.
  *
- * Límite de GTK4: el CSS no puede mover el content-pane opaco debajo de la
- * sidebar, así que el hueco que deja la esquina recortada muestra el velo de
- * la ventana (o el fondo), no el panel de archivos. El radio sí lo dibuja GTK.
+ * Las esquinas interiores de la sidebar rellenan su recorte exterior con
+ * @view_bg_color: el gradiente radial inverso pinta sólo la parte de fuera del
+ * arco y deja transparente el interior, así que la sidebar sigue siendo
+ * translúcida. El relleno va en el toolbarview hijo porque GTK no recorta el
+ * fondo de los hijos con el border-radius del padre; de este modo la curva
+ * muestra el mismo fondo opaco que el panel de archivos sin mover el
+ * content-pane ni tocar las esquinas exteriores de la ventana.
  *
  * Este archivo NO sustituye a MacTahoe: gtk-Dark-Tahoe.css /
  * gtk-Light-Tahoe.css importan primero el tema original y después este
@@ -123,6 +127,31 @@
   background-color: transparent;
   background-image: none;
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.26);
+}
+
+/* Esquinas interiores opacas. El radial inverso es transparente dentro del
+ * arco y @view_bg_color fuera: pinta exactamente el recorte que el
+ * border-radius de la sidebar deja al descubierto, sin tapar el cristal del
+ * interior. 18px coincide con el radio de .sidebar-pane. En LTR la esquina
+ * interior es la derecha; en RTL es la izquierda. Va en el toolbarview, que
+ * cubre siempre toda la altura de la sidebar (aunque se revele la barra de
+ * progreso) y queda detrás de la cabecera y del scrolledwindow, transparentes. */
+.nautilus-window .sidebar-pane:dir(ltr) > toolbarview {
+  background-image:
+    radial-gradient(circle at bottom left, transparent 18px, @view_bg_color 18px),
+    radial-gradient(circle at top left, transparent 18px, @view_bg_color 18px);
+  background-size: 18px 18px, 18px 18px;
+  background-position: right top, right bottom;
+  background-repeat: no-repeat, no-repeat;
+}
+
+.nautilus-window .sidebar-pane:dir(rtl) > toolbarview {
+  background-image:
+    radial-gradient(circle at bottom right, transparent 18px, @view_bg_color 18px),
+    radial-gradient(circle at top right, transparent 18px, @view_bg_color 18px);
+  background-size: 18px 18px, 18px 18px;
+  background-position: left top, left bottom;
+  background-repeat: no-repeat, no-repeat;
 }
 
 /* La superficie es más luminosa que antes; el text-shadow mantiene el texto
