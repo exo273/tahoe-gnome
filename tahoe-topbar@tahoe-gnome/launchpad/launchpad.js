@@ -745,41 +745,69 @@ export class TahoeLaunchpad {
     }
 
     _buildChips() {
-        const chips = new St.BoxLayout({
+        const chips = new St.ScrollView({
             style_class: 'tahoe-launchpad-chips',
-            orientation: Clutter.Orientation.VERTICAL,
+            hscrollbar_policy: St.PolicyType.AUTOMATIC,
+            vscrollbar_policy: St.PolicyType.NEVER,
+            overlay_scrollbars: false,
             x_expand: true,
-            y_align: Clutter.ActorAlign.START,
+            y_expand: false,
         });
-
-        // Ocho categorías en dos filas: la etiqueta «Entretenimiento» no cabe
-        // junto a las otras siete en el ancho de la hoja.
-        for (let start = 0; start < CATEGORIES.length; start += 4) {
-            const row = new St.BoxLayout({
-                style_class: 'tahoe-launchpad-chip-row',
-                orientation: Clutter.Orientation.HORIZONTAL,
-                x_expand: true,
-                x_align: Clutter.ActorAlign.CENTER,
+        const row = new St.BoxLayout({
+            style_class: 'tahoe-launchpad-chip-row',
+            orientation: Clutter.Orientation.HORIZONTAL,
+            x_expand: false,
+            x_align: Clutter.ActorAlign.START,
+        });
+        for (const category of CATEGORIES) {
+            const button = new St.Button({
+                style_class: 'tahoe-launchpad-chip',
+                can_focus: false,
+                reactive: true,
+                track_hover: true,
+                label: category.label,
+                accessible_name: category.label,
             });
-
-            for (const category of CATEGORIES.slice(start, start + 4)) {
-                const button = new St.Button({
-                    style_class: 'tahoe-launchpad-chip',
-                    can_focus: false,
-                    reactive: true,
-                    track_hover: true,
-                    label: category.label,
-                    accessible_name: category.label,
-                });
-                button.connect('clicked', () => this._selectCategory(category.id));
-                this._chipButtons.set(category.id, button);
-                row.add_child(button);
-            }
-            chips.add_child(row);
+            button.connect('clicked', () => {
+                this._scrollChipIntoView(chips, button);
+                this._selectCategory(category.id);
+            });
+            this._chipButtons.set(category.id, button);
+            row.add_child(button);
         }
-
+        chips.set_child(row);
+        chips.connect('scroll-event', (_actor, event) => {
+            const adjustment = chips.hadjustment;
+            const direction = event.get_scroll_direction();
+            let delta = 0;
+            if (direction === Clutter.ScrollDirection.UP)
+                delta = -45;
+            else if (direction === Clutter.ScrollDirection.DOWN)
+                delta = 45;
+            else if (direction === Clutter.ScrollDirection.SMOOTH) {
+                const [dx, dy] = event.get_scroll_delta();
+                delta = (Math.abs(dx) > Math.abs(dy) ? dx : dy) * 45;
+            }
+            if (delta === 0)
+                return Clutter.EVENT_PROPAGATE;
+            adjustment.value = clamp(adjustment.value + this._px(delta),
+                adjustment.lower, Math.max(adjustment.lower,
+                    adjustment.upper - adjustment.page_size));
+            return Clutter.EVENT_STOP;
+        });
         this._pane.add_child(chips);
         this._updateChipState();
+    }
+
+    _scrollChipIntoView(scroll, button) {
+        const adjustment = scroll.hadjustment;
+        const left = button.x;
+        const right = left + button.width;
+        const view = adjustment.page_size;
+        if (left < adjustment.value)
+            adjustment.value = left;
+        else if (right > adjustment.value + view)
+            adjustment.value = right - view;
     }
 
     _buildGrid() {

@@ -153,8 +153,24 @@
 /* ------------------------------------------------------------------ */
 
 .tahoe-launchpad-chips {
-    spacing: 5px;
-    padding: 1px 0 2px;
+    padding: 1px 0 0;
+    background-color: transparent;
+    border: none;
+}
+
+.tahoe-launchpad-chips StScrollBar {
+    min-height: 4px;
+}
+
+.tahoe-launchpad-chips StScrollBar StBin#trough {
+    background-color: rgba(120, 120, 128, 0.14);
+    border-radius: 999px;
+}
+
+.tahoe-launchpad-chips StScrollBar StBin#vhandle,
+.tahoe-launchpad-chips StScrollBar StBin#hhandle {
+    background-color: rgba(120, 120, 128, 0.52);
+    border-radius: 999px;
 }
 
 .tahoe-launchpad-chip-row {
@@ -163,6 +179,7 @@
 
 .tahoe-launchpad-chip {
     padding: 4px 11px;
+    min-width: 95px;
     min-height: 23px;
     border-radius: 999px;
     border: 1px solid rgba(0, 0, 0, 0.07);
