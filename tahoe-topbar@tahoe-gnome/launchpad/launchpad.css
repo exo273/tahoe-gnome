@@ -217,7 +217,7 @@
 
 .tahoe-launchpad-row {
     min-height: 86px;
-    spacing: 8px;
+    spacing: 7px;
 }
 
 .tahoe-launchpad-app {
@@ -251,11 +251,11 @@
 .tahoe-launchpad-icon-wrap {
     border-radius: 13px;
     background-color: transparent;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+    box-shadow: none;
 }
 
 .tahoe-theme-dark .tahoe-launchpad-icon-wrap {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.34);
+    box-shadow: none;
 }
 
 .tahoe-launchpad-app-label {

@@ -28,17 +28,17 @@ import {glassLook} from '../liquidGlass.js';
 
 const LOG = '[tahoe-launchpad]';
 
-const PANE_WIDTH = 480;
-const PANE_TOP = 70;
+const PANE_WIDTH = 640;
+const PANE_TOP = 55;
 const PANE_MARGIN = 20;
 const GLASS_RADIUS = 22;
 const OPEN_DURATION = 180;
 const CLOSE_DURATION = 150;
 const SEARCH_DELAY = 140;
 
-const GRID_COLUMNS = 6;
-const GRID_ROWS = 5;
-const CELL_WIDTH = 64;
+const GRID_COLUMNS = 8;
+const GRID_ROWS = 4;
+const CELL_WIDTH = 66;
 const CELL_HEIGHT = 86;
 const APP_ICON_SIZE = 48;
 const RESULT_ICON_SIZE = 34;
@@ -864,8 +864,8 @@ export class TahoeLaunchpad {
         const top = this._px(PANE_TOP);
         const available = Math.max(this._px(220),
             monitor.height - top - this._px(PANE_MARGIN));
-        // La cabecera (buscador + dos filas de chips + pie) ocupa unos 200 px;
-        // el resto se reserva para 4-5 filas de iconos.
+        // El buscador, las categorías y el pie dejan sitio a cuatro filas;
+        // el resto de apps se desplaza dentro de la hoja.
         const gridHeight = clamp(
             available - this._px(200),
             this._px(CELL_HEIGHT * 4),
@@ -877,8 +877,13 @@ export class TahoeLaunchpad {
         this._maxGridHeight = gridHeight;
         this._pane.set_width(width);
         this._setGridHeight(this._gridContentHeight || gridHeight);
+        // La referencia Tahoe coloca la hoja cerca del centro visual,
+        // no inmediatamente bajo la barra: centrar según su altura real.
+        const paneHeight = this._pane.get_preferred_height(width)[1];
+        const centeredY = Math.round((monitor.height - paneHeight) / 2);
         this._pane.set_position(
-            Math.round((monitor.width - width) / 2), top);
+            Math.round((monitor.width - width) / 2),
+            clamp(centeredY, top, Math.max(top, monitor.height - paneHeight - this._px(PANE_MARGIN))));
     }
 
     _setGridHeight(height) {
