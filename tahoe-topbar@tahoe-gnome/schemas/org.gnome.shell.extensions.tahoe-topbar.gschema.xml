@@ -257,7 +257,7 @@
       <description>Tiñe la luz del borde, los brillos y el sheen con el color que hay detrás del cristal en vez de blanco.</description>
     </key>
     <key name="glass-specular-intensity" type="d">
-      <default>0.0</default>
+      <default>0.12</default>
       <summary>Intensidad especular</summary>
       <description>Brillo de los reflejos especulares en la superficie del cristal.</description>
     </key>
@@ -272,7 +272,7 @@
       <description>Anchura de la banda de luz cerca de los bordes.</description>
     </key>
     <key name="glass-rim-intensity" type="d">
-      <default>0.5</default>
+      <default>0.7</default>
       <summary>Intensidad de la luz del borde</summary>
       <description>Brillo general de la luz del borde.</description>
     </key>
@@ -292,7 +292,7 @@
       <description>Multiplicador del brillo del color de la luz del borde.</description>
     </key>
     <key name="glass-sheen-intensity" type="d">
-      <default>0.0</default>
+      <default>0.06</default>
       <summary>Intensidad del sheen</summary>
       <description>Intensidad del brillo del fondo a través de la superficie del cristal.</description>
     </key>

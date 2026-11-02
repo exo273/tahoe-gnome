@@ -43,21 +43,23 @@
                 inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
-/* Con cristal, el fondo CSS sólo es una red de seguridad para capturas. */
+/* Con cristal, el fondo CSS se retira: el motor dibuja tinte, borde y sombra.
+   La clase sólo existe mientras hay un handle real, así que los estilos
+   «desenfoque» y «sin efecto» conservan su material CSS de arriba. */
 .tahoe-dock.tahoe-dock-glass {
-    background-color: rgba(255, 255, 255, 0.055);
-    border-color: rgba(255, 255, 255, 0.22);
+    background-color: transparent;
+    border-color: transparent;
     box-shadow: none;
 }
 
 .tahoe-theme-light .tahoe-dock.tahoe-dock-glass {
-    background-color: rgba(255, 255, 255, 0.40);
-    border-color: rgba(255, 255, 255, 0.62);
+    background-color: transparent;
+    border-color: transparent;
 }
 
 .tahoe-theme-dark .tahoe-dock.tahoe-dock-glass {
-    background-color: rgba(10, 10, 12, 0.055);
-    border-color: rgba(255, 255, 255, 0.12);
+    background-color: transparent;
+    border-color: transparent;
 }
 
 .tahoe-dock-item {

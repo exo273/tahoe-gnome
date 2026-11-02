@@ -1203,7 +1203,7 @@ export default class TahoeTopBarExtension extends Extension {
 
         this._appleGlassHandle = this._glassEngine.attach(box, glassLook(this._theme, {
             cornerRadius: 14,
-            blurRadius: 12,
+            blurRadius: 4,
             owner: 'apple-menu',
         }));
     }
@@ -1297,7 +1297,7 @@ export default class TahoeTopBarExtension extends Extension {
             () => this._panelGlassRects(),
             glassLook(this._theme, {
                 cornerRadius: radius,
-                blurRadius: 10,
+                blurRadius: 4,
                 owner: `panel-${mode}`,
             }));
     }

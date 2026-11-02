@@ -380,7 +380,7 @@ export class TahoeMenuBar {
         entry.glassHandle = this._glassEngine.attach(entry.menu.box,
             glassLook(this._extension?._theme, {
                 cornerRadius: 14,
-                blurRadius: 12,
+                blurRadius: 4,
                 owner: 'menubar-menu',
             }));
     }

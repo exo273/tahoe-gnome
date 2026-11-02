@@ -46,10 +46,10 @@ const DEFAULT_OPTIONS = {
     cornerRadius: 24,
     tint: '#ffffff',
     tintStrength: 0.12,
-    blurRadius: 8,
-    brightness: 1.0,
+    blurRadius: 4,
+    brightness: 0.97,
     contrast: 1.0,
-    saturation: 1.2,
+    saturation: 1.35,
     outline: null,
     shadow: true,
     shadowIntensity: null,
@@ -76,19 +76,25 @@ export function stageRect(actor) {
 }
 
 /**
- * Look del cristal para el modo claro/oscuro de TahoeTheme. Los módulos le
- * añaden radio, blur y owner. En oscuro el tinte es casi negro y baja el
- * brillo; en claro es blanco y lo sube un poco.
+ * Look del cristal para el modo claro/oscuro de TahoeTheme. Es la base común
+ * del dock, el panel, los menús, Acerca de y las notificaciones: un tinte
+ * blanco muy suave deja leer el fondo, la saturación conserva el color del
+ * cristal y un blur corto mantiene nítida la refracción. El borde lo dibuja
+ * el rim del motor (schema), no una línea CSS opaca.
+ *
+ * Los módulos sólo añaden radio, blur y owner. El blur por defecto es 4;
+ * ninguna superficie debe subirlo mucho más para no volver al aspecto lechoso.
  */
 export function glassLook(theme, extra = {}) {
     const dark = theme?.isDark ?? true;
     return {
-        tint: dark ? '#1c1c1e' : '#ffffff',
-        tintStrength: dark ? 0.35 : 0.25,
-        brightness: dark ? 0.85 : 1.05,
+        tint: '#ffffff',
+        tintStrength: dark ? 0.12 : 0.22,
+        brightness: dark ? 0.97 : 1.04,
         contrast: 1.0,
-        saturation: dark ? 1.15 : 1.05,
-        outline: {width: 1, color: dark ? '#4a4a4e' : '#ffffff'},
+        saturation: 1.35,
+        outline: null,
+        blurRadius: 4,
         ...extra,
     };
 }

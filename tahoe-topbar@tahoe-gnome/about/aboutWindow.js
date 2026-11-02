@@ -694,7 +694,7 @@ export class AboutDialog {
         this._glassHandle = this._glassEngine.attach(this._actor,
             glassLook(this._extension?._theme, {
                 cornerRadius: 18,
-                blurRadius: 14,
+                blurRadius: 4,
                 owner: 'about-window',
             }));
     }

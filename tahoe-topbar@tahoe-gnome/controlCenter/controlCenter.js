@@ -25,7 +25,13 @@ import {getRfkillManager} from 'resource:///org/gnome/shell/ui/status/rfkill.js'
 
 import {applyGlass, removeGlass} from './glass.js';
 import {stageRect} from '../liquidGlass.js';
-import {ccGlassLook, ccRefreshLook} from './material.js';
+import {
+    CC_GLASS_BLUR_RADIUS,
+    CC_POPOVER_BLUR_RADIUS,
+    CC_SHEET_BLUR_RADIUS,
+    ccGlassLook,
+    ccRefreshLook,
+} from './material.js';
 import {
     BatteryIcon,
     CircleButton,
@@ -492,7 +498,7 @@ export class TahoeControlCenter {
 
         const handle = this._glassEngine.attach(menu.box, ccGlassLook(this._tahoeTheme, {
             cornerRadius: 22,
-            blurRadius: 7,
+            blurRadius: CC_POPOVER_BLUR_RADIUS,
             owner,
         }));
         this._popoverHandles.set(menu, handle);
@@ -787,7 +793,7 @@ export class TahoeControlCenter {
                 const handle = this._glassEngine.attach(actor,
                     ccGlassLook(this._tahoeTheme, {
                         cornerRadius: 22,
-                        blurRadius: 7,
+                        blurRadius: CC_SHEET_BLUR_RADIUS,
                         owner: 'cc-sheet',
                     }));
                 this._sheetHandles.add(handle);
@@ -1705,7 +1711,7 @@ export class TahoeControlCenter {
             () => this._collectGlassRects(actors),
             ccGlassLook(this._tahoeTheme, {
                 cornerRadius: radius,
-                blurRadius: 5,
+                blurRadius: CC_GLASS_BLUR_RADIUS,
                 owner,
             }));
 

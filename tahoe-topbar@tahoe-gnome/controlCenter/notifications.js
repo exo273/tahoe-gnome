@@ -26,6 +26,22 @@ import {glassLook} from '../liquidGlass.js';
 
 const LOG = '[tahoe-topbar/notifications]';
 
+const NOTIFICATION_GLASS_BLUR_RADIUS = 4;
+// El banner y las tarjetas llevan más texto que el resto del chrome: un tinte
+// algo más alto que el global mantiene la lectura sin volver al fondo opaco.
+const NOTIFICATION_TINT_DARK = 0.20;
+const NOTIFICATION_TINT_LIGHT = 0.26;
+
+function notificationGlassLook(theme, owner) {
+    const dark = theme?.isDark ?? true;
+    return glassLook(theme, {
+        cornerRadius: 18,
+        blurRadius: NOTIFICATION_GLASS_BLUR_RADIUS,
+        tintStrength: dark ? NOTIFICATION_TINT_DARK : NOTIFICATION_TINT_LIGHT,
+        owner,
+    });
+}
+
 const PANEL_WIDTH = 284;
 const MAX_CARD_HANDLES = 4;
 const MAX_SCROLL_HEIGHT = 420;
@@ -802,11 +818,7 @@ export class TahoeNotifications {
 
         try {
             this._bannerHandle = this._cc._glassEngine.attach(banner,
-                glassLook(this._cc._tahoeTheme, {
-                    cornerRadius: 18,
-                    blurRadius: 12,
-                    owner: 'notification-banner',
-                }));
+                notificationGlassLook(this._cc._tahoeTheme, 'notification-banner'));
             banner.add_style_class_name('tahoe-notification-banner-glass');
         } catch (e) {
             this._bannerHandle = null;
@@ -958,11 +970,8 @@ export class TahoeNotifications {
 
         if (this._bannerHandle) {
             try {
-                this._bannerHandle.update(glassLook(this._cc?._tahoeTheme, {
-                    cornerRadius: 18,
-                    blurRadius: 12,
-                    owner: 'notification-banner',
-                }));
+                this._bannerHandle.update(notificationGlassLook(
+                    this._cc?._tahoeTheme, 'notification-banner'));
             } catch (_e) {
                 // Handle ya destruido.
             }
@@ -970,11 +979,8 @@ export class TahoeNotifications {
 
         for (const {handle} of this._cardHandles) {
             try {
-                handle.update(glassLook(this._cc?._tahoeTheme, {
-                    cornerRadius: 18,
-                    blurRadius: 12,
-                    owner: 'notification-card',
-                }));
+                handle.update(notificationGlassLook(
+                    this._cc?._tahoeTheme, 'notification-card'));
             } catch (_e) {
                 // Handle ya destruido.
             }
@@ -1482,11 +1488,7 @@ export class TahoeNotifications {
                 continue;
             try {
                 const handle = this._cc._glassEngine.attach(card,
-                    glassLook(this._cc._tahoeTheme, {
-                        cornerRadius: 18,
-                        blurRadius: 12,
-                        owner: 'notification-card',
-                    }));
+                    notificationGlassLook(this._cc._tahoeTheme, 'notification-card'));
                 this._cardHandles.push({card, handle});
                 card.add_style_class_name('tahoe-notification-card-glass');
             } catch (e) {

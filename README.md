@@ -11,7 +11,7 @@ Probado en Fedora 44 con GNOME 50.6 (Wayland).
 - **Centro de control** Liquid Glass (sustituye los Ajustes rápidos, Super+S): Wi‑Fi, Bluetooth, modo avión, Concentración, modo oscuro, luz nocturna, brillo, sonido, reproducción MPRIS, perfil de energía… con desenfoque de fondo. Los controles se pueden añadir, quitar, cambiar de tamaño y ordenar con **Editar controles**; también admite botones de otras extensiones como Caffeine.
 - **Notificaciones**: banners Liquid Glass arriba a la derecha con el panel cerrado; al abrirlo aparecen debajo, agrupadas por aplicación. Se pueden borrar deslizando, con la X individual o con **Borrar todo**. El reloj muestra la hora sin abrir el calendario de GNOME.
 - **Dock Tahoe integrado**: reemplaza Dash to Dock (lo desactiva al encender el dock Tahoe) y oculta el dash nativo de GNOME mientras esté activo; apps favoritas y abiertas, aumento de iconos al pasar el ratón, Liquid Glass, minimización Aladdin/Genie, Launchpad con icono personalizable, pila de Descargas y Papelera. Configurable en **Preferencias → Dock**.
-- **Cristal Liquid Glass** con refracción real en el Centro de control, los menús, la barra superior (píldora o islas) y la ventana «Acerca de»; se elige en Preferencias → Cristal (Liquid Glass, desenfoque simple o sin efecto).
+- **Cristal Liquid Glass** con refracción real en el Centro de control, los menús, la barra superior (píldora o islas), el dock, las notificaciones y la ventana «Acerca de»; un material común de blur corto, tinte blanco sutil y borde iluminado mantiene el mismo aspecto en todas las superficies. Se elige en Preferencias → Cristal (Liquid Glass, desenfoque simple o sin efecto).
 - **Indicadores** de batería, sonido y Wi‑Fi con menús propios.
 - **Acerca de este Mac** con imagen personalizable y datos del equipo autodetectados.
 - **Modo claro/oscuro** automático y color de acento de GNOME; sincronización opcional de los temas MacTahoe-Light/Dark.
@@ -74,7 +74,7 @@ Para restaurar: `rm -rf "$HOME/.config/gtk-4.0" && mv "$backup" "$HOME/.config/g
 
 En **Preferencias → Cristal**:
 
-- **Estilo del cristal**: `Liquid Glass` (motor con refracción y borde iluminado), `Desenfoque simple` (el `Shell.BlurEffect` de GNOME) o `Sin efecto` (sólo el fondo translúcido del CSS).
+- **Estilo del cristal**: `Liquid Glass` (motor con refracción, tinte blanco suave, reflejos especulares discretos y borde iluminado), `Desenfoque simple` (el `Shell.BlurEffect` de GNOME) o `Sin efecto` (sólo el fondo translúcido del CSS).
 - **Cristal de la barra superior**: `Desactivado` (Tahoe transparente), `Píldora` (toda la barra como una píldora flotante) o `Islas` (una píldora por grupo de botones). Sólo se aplica con Liquid Glass.
 - Los ajustes del motor (refracción, borde, aberración, luz, sombra, método y calidad del desenfoque) se aplican en vivo. El botón **Restablecer valores de cristal** vuelve a los valores originales.
 

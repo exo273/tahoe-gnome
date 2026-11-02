@@ -2867,7 +2867,7 @@ export class TahoeDock {
         const look = glassLook(
             this._theme ?? {isDark: this._isDark()}, {
                 cornerRadius: this._px(GLASS_RADIUS),
-                blurRadius: this._px(16),
+                blurRadius: this._px(4),
                 owner: 'tahoe-dock',
                 shadow: true,
             });

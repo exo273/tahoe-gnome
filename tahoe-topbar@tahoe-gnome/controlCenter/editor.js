@@ -22,7 +22,7 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {ccGlassLook, ccRefreshLook} from './material.js';
+import {CC_POPOVER_BLUR_RADIUS, CC_SHEET_BLUR_RADIUS, ccGlassLook, ccRefreshLook} from './material.js';
 import {CONTROL_SIZES, sizeSpan} from './layout.js';
 
 const LOG = '[tahoe-topbar/cc]';
@@ -227,7 +227,7 @@ export class ControlCenterEditor {
         this._galleryHandle = cc._glassEngine.attach(this._gallery,
             ccGlassLook(cc._tahoeTheme, {
                 cornerRadius: 26,
-                blurRadius: 14,
+                blurRadius: CC_SHEET_BLUR_RADIUS,
                 owner: 'cc-gallery',
             }));
     }
@@ -1834,7 +1834,7 @@ export class ControlCenterEditor {
             handle = cc._glassEngine.attach(menu,
                 ccGlassLook(cc._tahoeTheme, {
                     cornerRadius: 14,
-                    blurRadius: 10,
+                    blurRadius: CC_POPOVER_BLUR_RADIUS,
                     owner: 'cc-context-menu',
                 }));
         }
