@@ -68,7 +68,21 @@ cd /ruta/al/clon/MacTahoe-gtk-theme
 ./install.sh -l -c light   # o -c dark
 ```
 
-Para restaurar: `rm -rf "$HOME/.config/gtk-4.0" && mv "$backup" "$HOME/.config/gtk-4.0"`. La sincronización de tahoe-gnome sólo cambia el enlace `~/.config/gtk-4.0/gtk.css` entre `gtk-Light.css` y `gtk-Dark.css` si ya existe; no instala ni sobrescribe libadwaita por su cuenta.
+Para restaurar: `rm -rf "$HOME/.config/gtk-4.0" && mv "$backup" "$HOME/.config/gtk-4.0"`. La sincronización de tahoe-gnome sólo cambia el enlace `~/.config/gtk-4.0/gtk.css` entre las variantes instaladas; no instala ni sobrescribe libadwaita por su cuenta.
+
+### Cristal selectivo en Nautilus (opcional)
+
+Con MacTahoe GTK4 instalado, puedes conservar **texto e iconos completamente opacos** en Archivos y ver el cristal únicamente detrás de su barra lateral y cabecera. El script añade una capa CSS encima del tema original sin editar `gtk-Dark.css` ni `gtk-Light.css`; hace copia de seguridad de los enlaces que modifica.
+
+```bash
+scripts/nautilus-glass.sh install --mode auto
+scripts/nautilus-glass.sh status
+# Para revertir: scripts/nautilus-glass.sh remove
+```
+
+Después, en **Preferencias → Ventanas**, deja activado el cristal sólo para Nautilus, desactiva «Aplicar a todas las ventanas», ajusta **Opacidad del contenido** a `1.0` y **Radio del desenfoque** a `10`. Cierra Nautilus y vuelve a abrirlo (`nautilus -q`) para que GTK4 cargue el nuevo CSS. Si tienes activada la sincronización de temas, el modo claro/oscuro alterna entre los wrappers `gtk-Light-Tahoe.css` y `gtk-Dark-Tahoe.css`.
+
+El CSS se limita a Nautilus; otras apps mantienen MacTahoe sin esta variante. Una reinstalación de MacTahoe puede borrar los wrappers: `status` lo detecta y puedes repetir `install`. Es una integración GTK4 de usuario, no una inyección CSS del compositor.
 
 ### Elegir el cristal
 

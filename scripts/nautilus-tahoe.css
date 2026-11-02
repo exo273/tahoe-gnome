@@ -1,0 +1,108 @@
+/* GESTIONADO POR scripts/nautilus-glass.sh — no editar la copia instalada. */
+/*
+ * Tahoe Nautilus — opción B.
+ *
+ * La superficie GTK completa es opaca (application-content-opacity = 1.0).
+ * Sólo la cabecera y la barra lateral dejan alfa (~0.62) para que se vea el
+ * cristal del compositor que tahoe-topbar coloca debajo de la ventana. El
+ * panel de archivos (content-pane / tabview / vistas) se fuerza a opaco para
+ * que el texto y las miniaturas no pierdan contraste.
+ *
+ * Este archivo NO sustituye a MacTahoe: gtk-Dark-Tahoe.css /
+ * gtk-Light-Tahoe.css importan primero el tema original y después este
+ * override. No se modifican gtk-Dark.css ni gtk-Light.css.
+ */
+
+/* Base de la ventana: único velo translúcido. La sidebar y las cabeceras
+ * quedan transparentes encima para no apilar alfa. */
+.nautilus-window.background,
+.nautilus-window.background.view,
+.nautilus-window.background.csd {
+  background-color: alpha(@window_bg_color, 0.62);
+  background-image: none;
+}
+
+.nautilus-window.background:backdrop,
+.nautilus-window.background.view:backdrop {
+  background-color: alpha(@window_bg_color, 0.62);
+  background-image: none;
+}
+
+/* Barra lateral: sin fondo propio; el velo de la ventana es el material. */
+.nautilus-window .sidebar-pane,
+.nautilus-window .sidebar-pane:backdrop {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: inset -1px 0 alpha(currentColor, 0.12);
+}
+
+.nautilus-window .sidebar-pane placessidebar,
+.nautilus-window .sidebar-pane placessidebar list,
+.nautilus-window .sidebar-pane .navigation-sidebar,
+.nautilus-window .sidebar-pane .sidebar,
+.nautilus-window .sidebar-pane .toolbar,
+.nautilus-window .sidebar-pane searchbar > revealer > box {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
+/* Cabeceras: mismo velo que la sidebar; el contenido de archivos va opaco. */
+.nautilus-window headerbar,
+.nautilus-window headerbar:backdrop,
+.nautilus-window .sidebar-pane headerbar,
+.nautilus-window .content-pane headerbar {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* El content-pane contiene la cabecera y el tabview. Debe ser transparente
+ * para que la cabecera vea el cristal, pero el tabview de archivos es opaco. */
+.nautilus-window .content-pane,
+.nautilus-window .content-pane:backdrop {
+  background-color: transparent;
+  background-image: none;
+}
+
+.nautilus-window .content-pane tabview,
+.nautilus-window .content-pane adwtabview,
+.nautilus-window .content-pane tabbox,
+.nautilus-window .content-pane .nautilus-grid-view,
+.nautilus-window .content-pane .nautilus-list-view,
+.nautilus-window .content-pane .nautilus-network-view,
+.nautilus-window .content-pane .nautilus-files-view {
+  background-color: @view_bg_color;
+  background-image: none;
+}
+
+/* Las filas y celdas siguen usando el fondo opaco de la vista. */
+.nautilus-window .content-pane listview,
+.nautilus-window .content-pane columnview,
+.nautilus-window .content-pane gridview {
+  background-color: transparent;
+}
+
+/* El borde activo de la sidebar del tema MacTahoe usa @view_bg_color como
+ * marco opaco; se sustituye por una línea fina que no tapa el cristal. */
+.nautilus-window.background .sidebar-pane:dir(ltr),
+.nautilus-window.background .sidebar-pane.end:dir(rtl) {
+  box-shadow: inset -1px 0 alpha(currentColor, 0.12);
+}
+
+.nautilus-window.background .sidebar-pane:dir(rtl),
+.nautilus-window.background .sidebar-pane.end:dir(ltr) {
+  box-shadow: inset 1px 0 alpha(currentColor, 0.12);
+}
+
+.nautilus-window .sidebar-pane:backdrop:dir(ltr),
+.nautilus-window .sidebar-pane:backdrop:dir(rtl) {
+  box-shadow: none;
+}
+
+/* Separadores/undershoot del tema que asumen un fondo opaco. */
+.nautilus-window .content-pane scrolledwindow > undershoot.top,
+.nautilus-window .content-pane scrolledwindow > undershoot.bottom {
+  background: none;
+}

@@ -400,7 +400,10 @@ export class TahoeTheme {
         const target = info.get_symlink_target();
         const base = GLib.path_get_basename(target);
 
-        if (base !== 'gtk-Light.css' && base !== 'gtk-Dark.css')
+        const tahoeWrapper = base === 'gtk-Light-Tahoe.css' ||
+            base === 'gtk-Dark-Tahoe.css';
+        if (!tahoeWrapper && base !== 'gtk-Light.css' &&
+            base !== 'gtk-Dark.css')
             return;
 
         const targetPath = GLib.path_is_absolute(target)
@@ -411,7 +414,10 @@ export class TahoeTheme {
         if (GLib.path_get_dirname(targetPath) !== dir)
             return;
 
-        const desiredName = `gtk-${mode}.css`;
+        const desiredName = `gtk-${mode}${tahoeWrapper ? '-Tahoe' : ''}.css`;
+        if (tahoeWrapper && !GLib.file_test(
+            GLib.build_filenamev([dir, desiredName]), GLib.FileTest.IS_REGULAR))
+            return;
         if (base === desiredName)
             return;
 
