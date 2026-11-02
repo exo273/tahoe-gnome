@@ -22,7 +22,7 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {glassLook} from '../liquidGlass.js';
+import {ccGlassLook, ccRefreshLook} from './material.js';
 import {CONTROL_SIZES, sizeSpan} from './layout.js';
 
 const LOG = '[tahoe-topbar/cc]';
@@ -225,7 +225,7 @@ export class ControlCenterEditor {
             return;
 
         this._galleryHandle = cc._glassEngine.attach(this._gallery,
-            glassLook(cc._tahoeTheme, {
+            ccGlassLook(cc._tahoeTheme, {
                 cornerRadius: 26,
                 blurRadius: 14,
                 owner: 'cc-gallery',
@@ -256,13 +256,13 @@ export class ControlCenterEditor {
         if (!cc || !this._editing)
             return;
 
-        const look = glassLook(cc._tahoeTheme);
         for (const handle of [
             this._galleryHandle,
             this._context?.handle,
         ]) {
             try {
-                handle?.update(look);
+                if (handle)
+                    handle.update(ccRefreshLook(cc._tahoeTheme, handle._options));
             } catch (_e) {
                 // Handle ya destruido.
             }
@@ -1832,7 +1832,7 @@ export class ControlCenterEditor {
         const cc = this._cc;
         if (cc._glassStyle === 'liquid' && cc._glassEngine) {
             handle = cc._glassEngine.attach(menu,
-                glassLook(cc._tahoeTheme, {
+                ccGlassLook(cc._tahoeTheme, {
                     cornerRadius: 14,
                     blurRadius: 10,
                     owner: 'cc-context-menu',

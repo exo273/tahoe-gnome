@@ -24,7 +24,8 @@ import {getMixerControl} from 'resource:///org/gnome/shell/ui/status/volume.js';
 import {getRfkillManager} from 'resource:///org/gnome/shell/ui/status/rfkill.js';
 
 import {applyGlass, removeGlass} from './glass.js';
-import {glassLook, stageRect} from '../liquidGlass.js';
+import {stageRect} from '../liquidGlass.js';
+import {ccGlassLook, ccRefreshLook} from './material.js';
 import {
     BatteryIcon,
     CircleButton,
@@ -425,13 +426,16 @@ export class TahoeControlCenter {
     }
 
     _applyGlassLook() {
-        const look = glassLook(this._tahoeTheme);
+        // El material se refresca por superficie para no perder el blur ni el
+        // radio que cada módulo fijó al crearse (hojas, popovers, detalle).
+        const refresh = handle => handle.update(ccRefreshLook(
+            this._tahoeTheme, handle._options));
         for (const handle of this._mainGlassHandles)
-            handle.update(look);
+            refresh(handle);
         for (const handle of this._sheetHandles)
-            handle.update(look);
+            refresh(handle);
         for (const handle of this._popoverHandles.values())
-            handle.update(look);
+            refresh(handle);
     }
 
     /**
@@ -486,9 +490,9 @@ export class TahoeControlCenter {
         if (this._popoverHandles.has(menu))
             return;
 
-        const handle = this._glassEngine.attach(menu.box, glassLook(this._tahoeTheme, {
+        const handle = this._glassEngine.attach(menu.box, ccGlassLook(this._tahoeTheme, {
             cornerRadius: 22,
-            blurRadius: 10,
+            blurRadius: 7,
             owner,
         }));
         this._popoverHandles.set(menu, handle);
@@ -781,9 +785,9 @@ export class TahoeControlCenter {
         if (this._glassStyle === 'liquid' && this._glassEngine) {
             if (radius === 22) {
                 const handle = this._glassEngine.attach(actor,
-                    glassLook(this._tahoeTheme, {
+                    ccGlassLook(this._tahoeTheme, {
                         cornerRadius: 22,
-                        blurRadius: 12,
+                        blurRadius: 7,
                         owner: 'cc-sheet',
                     }));
                 this._sheetHandles.add(handle);
@@ -1699,9 +1703,9 @@ export class TahoeControlCenter {
         const make = (actors, radius, owner) => this._glassEngine.attachRegions(
             grid,
             () => this._collectGlassRects(actors),
-            glassLook(this._tahoeTheme, {
+            ccGlassLook(this._tahoeTheme, {
                 cornerRadius: radius,
-                blurRadius: 12,
+                blurRadius: 5,
                 owner,
             }));
 
