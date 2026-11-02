@@ -30,6 +30,30 @@ const MENU_WINDOW_TYPES = [
 // Bound on the transient_for walk, so a cycle cannot hang the first-frame
 // handler. A desktop menu is one hop from the desktop, submenus a few more.
 const MAX_TRANSIENT_DEPTH = 8;
+// Nautilus windows can keep an opaque client surface (content-opacity 1.0)
+// while their GTK sidebar/header CSS stays partly transparent. In that setup the glass
+// below the window is only visible through those strips, so it can take the
+// Control Center look (short blur, saturated, bright, rim light) without
+// turning the file view translucent. 0.99 keeps the rim off whenever the
+// whole surface is being faded, where it would read as a bright frame.
+const NAUTILUS_SURFACE_LIGHT_MIN_OPACITY = 0.99;
+// WM_CLASS / GtkApplication id values Nautilus uses under X11 and Wayland.
+const NAUTILUS_WINDOW_IDS = new Set([
+    'nautilus',
+    'org.gnome.nautilus',
+    'org.gnome.nautilus.desktop',
+]);
+// Control Center's glassLook(): white tint 0.12, brightness 1.04,
+// saturation 1.35 and a 4 px blur. The application profile's own settings
+// stay untouched for every other application.
+const NAUTILUS_GLASS_LOOK = Object.freeze({
+    tint: [1, 1, 1],
+    tintStrength: 0.12,
+    blurRadius: 4,
+    brightness: 1.04,
+    contrast: 1.0,
+    saturation: 1.35,
+});
 
 export class ApplicationManager {
     _extensionPath;
@@ -118,6 +142,7 @@ export class ApplicationManager {
         connectSetting('application-glass-all-windows', () => this._syncWhitelist());
         connectSetting('application-window-whitelist', () => this._syncWhitelist());
         connectSetting('application-window-blacklist', () => this._syncWhitelist());
+        connectSetting('application-nautilus-glass', () => this._updateEffectParams());
         connectSetting('application-corner-on-maximized', () => { this._cornerOnMaximized = this._settings.get_boolean('application-corner-on-maximized'); this._updateMaximized(); });
         connectSetting('application-glass-on-maximized', () => { this._glassOnMaximized = this._settings.get_boolean('application-glass-on-maximized'); this._updateMaximized(); });
         this._cornerOnMaximized = this._settings.get_boolean('application-corner-on-maximized');
@@ -135,6 +160,10 @@ export class ApplicationManager {
         for (const state of this._states.values()) {
             if (isActorValid(state.surfaceActor))
                 state.surfaceActor.opacity = Math.round(this._getContentOpacity(state.profile) * 255);
+            // Toggling content opacity across 0.99 turns the Nautilus rim on
+            // or off immediately, without rebuilding the window.
+            if (state.nautilus)
+                this._applySurfaceLight(state.glass, true);
         }
     }
 
@@ -175,6 +204,41 @@ export class ApplicationManager {
     _windowMatchesBlacklist(metaWindow) {
         const blacklist = this._settings.get_strv('application-window-blacklist');
         return this._listContainsClass(blacklist, metaWindow.get_wm_class());
+    }
+
+    // Nautilus is in the default whitelist, but its surface is usually kept
+    // opaque while only the GTK CSS strips are translucent. Detect it by the
+    // app ids Mutter exposes in both X11 and Wayland, not by the whitelist:
+    // "apply to all windows" must not give every app the Nautilus optics.
+    _isNautilusWindow(metaWindow) {
+        if (!metaWindow)
+            return false;
+        const ids = [
+            metaWindow.get_wm_class?.(),
+            metaWindow.get_gtk_application_id?.(),
+            metaWindow.get_sandboxed_app_id?.(),
+        ];
+        return ids.some((id) => {
+            if (!id)
+                return false;
+            const normalized = String(id).toLowerCase().replace(/\.desktop$/, '');
+            return NAUTILUS_WINDOW_IDS.has(normalized);
+        });
+    }
+
+    _nautilusOpticsEnabled() {
+        return this._settings.get_boolean('application-nautilus-glass');
+    }
+
+    // The rim/specular/sheen is the part that can become a bright frame. It is
+    // only safe when the client surface itself stays opaque, i.e. it is not
+    // the glass that makes the window translucent. The CSS wrapper leaves the
+    // Nautilus content at alpha 1.0, so this condition is true there.
+    _applySurfaceLight(glass, nautilus) {
+        const enabled = nautilus &&
+            this._nautilusOpticsEnabled() &&
+            this._getContentOpacity('application') >= NAUTILUS_SURFACE_LIGHT_MIN_OPACITY;
+        glass.setSurfaceLightEnabled(enabled);
     }
 
     /**
@@ -292,19 +356,31 @@ export class ApplicationManager {
 
     _updateEffectParams() {
         for (const state of this._states.values())
-            this._applyAppearance(state.glass, state.profile);
+            this._applyAppearance(state.glass, state.profile, state.nautilus);
         this._updateMaximized();
     }
 
-    _applyAppearance(glass, profile) {
+    _applyAppearance(glass, profile, nautilus = false) {
         const k = (suffix) => this._profileKey(profile, suffix);
-        glass.setTintColor(...hexToColorArray(this._settings.get_string(k('tint-color'))));
-        glass.setTintStrength(this._settings.get_double(k('tint-strength')));
+        const useNautilusLook = nautilus && this._nautilusOpticsEnabled();
+        if (useNautilusLook) {
+            const [r, g, b] = NAUTILUS_GLASS_LOOK.tint;
+            glass.setTintColor(r, g, b);
+            glass.setTintStrength(NAUTILUS_GLASS_LOOK.tintStrength);
+            glass.setBlurRadius(NAUTILUS_GLASS_LOOK.blurRadius);
+            glass.setBrightness(NAUTILUS_GLASS_LOOK.brightness);
+            glass.setContrast(NAUTILUS_GLASS_LOOK.contrast);
+            glass.setSaturation(NAUTILUS_GLASS_LOOK.saturation);
+        } else {
+            glass.setTintColor(...hexToColorArray(this._settings.get_string(k('tint-color'))));
+            glass.setTintStrength(this._settings.get_double(k('tint-strength')));
+            glass.setBlurRadius(this._settings.get_int(k('blur-radius')));
+            glass.setBrightness(this._settings.get_double(k('brightness')));
+            glass.setContrast(this._settings.get_double(k('contrast')));
+            glass.setSaturation(this._settings.get_double(k('saturation')));
+        }
         glass.setCornerRadius(this._settings.get_double(k('corner-radius')));
-        glass.setBlurRadius(this._settings.get_int(k('blur-radius')));
-        glass.setBrightness(this._settings.get_double(k('brightness')));
-        glass.setContrast(this._settings.get_double(k('contrast')));
-        glass.setSaturation(this._settings.get_double(k('saturation')));
+        this._applySurfaceLight(glass, useNautilusLook);
     }
 
     // The sync runs from the stage's 'before-update', i.e. only on frames the
@@ -339,6 +415,8 @@ export class ApplicationManager {
         const surfaceActor = windowActor.get_first_child();
         if (!surfaceActor || !windowActor.get_parent())
             return;
+        const metaWin = windowActor.get_meta_window();
+        const nautilus = this._isNautilusWindow(metaWin);
         const originalOpacity = surfaceActor.opacity;
         surfaceActor.opacity = Math.round(this._getContentOpacity(profile) * 255);
         // Inside the window actor and below its surface: it moves, scales and
@@ -353,22 +431,19 @@ export class ApplicationManager {
         });
         glass.set_name('liquid-glass-window');
         glass.setPadding(this._glassMargin);
-        this._applyAppearance(glass, profile);
+        this._applyAppearance(glass, profile, nautilus);
         glass.setIsDock(false);
-        // No rim, specular or sheen: around a window with translucent content
-        // they read as a bright frame. Only this window's glass is affected.
-        glass.setSurfaceLightEnabled(false);
         // Windows draw their own circular corners, which the glass has to match.
         glass.setCornerSmoothingEnabled(false);
         glass.setShadowMaxRadius(Math.max(0, this._glassMargin - SHADOW_MARGIN_HEADROOM));
         windowActor.insert_child_below(glass, surfaceActor);
         let maximized = false;
-        const metaWin = windowActor.get_meta_window();
         if (metaWin) {
             maximized = metaWin.maximized_horizontally || metaWin.maximized_vertically;
         }
         const state = {
             profile,
+            nautilus,
             windowActor,
             surfaceActor,
             originalOpacity,

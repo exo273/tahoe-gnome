@@ -388,6 +388,11 @@
       <default>12</default>
       <summary>Radio del desenfoque (px)</summary>
     </key>
+    <key name="application-nautilus-glass" type="b">
+      <default>true</default>
+      <summary>Óptica Liquid Glass reforzada en Nautilus</summary>
+      <description>Cuando la ventana es Nautilus, usa el look del Centro de control (blur 4 px, tinte blanco 0.12, brillo 1.04, saturación 1.35) en lugar de application-*. Con application-content-opacity ≥ 0.99 también enciende el rim/specular del cristal; con el contenido translúcido se deja apagado para no dibujar un marco brillante. Requiere el override CSS de Nautilus (scripts/nautilus-glass.sh): sin él la superficie opaca tapa el cristal y no hay cambio visible. No afecta a otras aplicaciones.</description>
+    </key>
     <key name="application-corner-radius" type="d">
       <range min="0" max="60"/>
       <default>18.0</default>

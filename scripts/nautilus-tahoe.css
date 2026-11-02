@@ -3,10 +3,20 @@
  * Tahoe Nautilus — opción B.
  *
  * La superficie GTK completa es opaca (application-content-opacity = 1.0).
- * Sólo la cabecera y la barra lateral dejan alfa (~0.62) para que se vea el
- * cristal del compositor que tahoe-topbar coloca debajo de la ventana. El
- * panel de archivos (content-pane / tabview / vistas) se fuerza a opaco para
- * que el texto y las miniaturas no pierdan contraste.
+ * Sólo la cabecera y la barra lateral dejan alfa para que se vea el cristal
+ * del compositor que tahoe-topbar coloca debajo de la ventana. El panel de
+ * archivos (content-pane / tabview / vistas) se fuerza a opaco para que el
+ * texto y las miniaturas no pierdan contraste.
+ *
+ * El cristal de sidebar/cabecera añade el acabado que el compositor no puede
+ * dibujar dentro de la ventana: gradiente direccional muy suave, highlight
+ * blanco de 1 px, oclusión ambiental interior y un borde neutro de 1 px. Todo
+ * son capas de box-shadow/background-image de GTK4; no hay blur CSS.
+ *
+ * 0.52 es el alfa recomendado tras comparar 0.62, 0.55, 0.52 y 0.48 sobre
+ * fondos claro, negro y azul Tahoe. 0.62 se lee como velo; 0.48 pierde
+ * contraste en la cabecera. El valor se puede subir/bajar aquí sin tocar el
+ * esquema.
  *
  * Este archivo NO sustituye a MacTahoe: gtk-Dark-Tahoe.css /
  * gtk-Light-Tahoe.css importan primero el tema original y después este
@@ -18,22 +28,33 @@
 .nautilus-window.background,
 .nautilus-window.background.view,
 .nautilus-window.background.csd {
-  background-color: alpha(@window_bg_color, 0.62);
+  background-color: alpha(@window_bg_color, 0.52);
   background-image: none;
 }
 
 .nautilus-window.background:backdrop,
 .nautilus-window.background.view:backdrop {
-  background-color: alpha(@window_bg_color, 0.62);
+  background-color: alpha(@window_bg_color, 0.52);
   background-image: none;
 }
 
-/* Barra lateral: sin fondo propio; el velo de la ventana es el material. */
+/* Barra lateral: el velo de la ventana es el material; encima van las capas
+ * de acabado. El highlight superior y el borde interior derecho simulan el
+ * canto pulido; el inset amplio y oscuro es la oclusión ambiental. */
 .nautilus-window .sidebar-pane,
 .nautilus-window .sidebar-pane:backdrop {
   background-color: transparent;
-  background-image: none;
-  box-shadow: inset -1px 0 alpha(currentColor, 0.12);
+  background-image: linear-gradient(to bottom,
+    rgba(255, 255, 255, 0.105) 0%,
+    rgba(255, 255, 255, 0.030) 16%,
+    rgba(255, 255, 255, 0.000) 50%,
+    rgba(0, 0, 0, 0.095) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 1px 0 0 rgba(255, 255, 255, 0.12),
+    inset -1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.18),
+    inset 0 0 26px rgba(0, 0, 0, 0.17);
 }
 
 .nautilus-window .sidebar-pane placessidebar,
@@ -47,15 +68,43 @@
   box-shadow: none;
 }
 
-/* Cabeceras: mismo velo que la sidebar; el contenido de archivos va opaco. */
+/* Canto interior de 1 px que separa la sidebar del panel opaco. El box-shadow
+ * inset derecho se pierde a veces bajo el content-pane; un borde real de 1 px
+ * no cambia el aspecto y sí queda visible. */
+.nautilus-window .sidebar-pane:dir(ltr) {
+  border-right: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+.nautilus-window .sidebar-pane:dir(rtl) {
+  border-left: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+/* Cabeceras: mismo material y un canto inferior oscuro que separa la barra
+ * del panel de archivos opaco. El highlight superior es más marcado porque
+ * la luz del cristal llega desde arriba. */
 .nautilus-window headerbar,
 .nautilus-window headerbar:backdrop,
 .nautilus-window .sidebar-pane headerbar,
 .nautilus-window .content-pane headerbar {
   background-color: transparent;
-  background-image: none;
+  background-image: linear-gradient(to bottom,
+    rgba(255, 255, 255, 0.125) 0%,
+    rgba(255, 255, 255, 0.035) 40%,
+    rgba(0, 0, 0, 0.085) 100%);
   border: none;
-  box-shadow: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 1px 0 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.16),
+    inset 0 0 24px rgba(0, 0, 0, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.26);
+}
+
+/* La superficie es más luminosa que antes; el text-shadow mantiene el texto
+ * blanco legible sobre fondos claros sin tocar su alfa. */
+.nautilus-window .sidebar-pane label,
+.nautilus-window headerbar label {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.42);
 }
 
 /* El content-pane contiene la cabecera y el tabview. Debe ser transparente
@@ -84,21 +133,36 @@
   background-color: transparent;
 }
 
-/* El borde activo de la sidebar del tema MacTahoe usa @view_bg_color como
- * marco opaco; se sustituye por una línea fina que no tapa el cristal. */
+/* El borde activo de la sidebar del tema MacTahoe usa un marco opaco de 6 px
+ * con @view_bg_color. Se sustituye por las capas finas de arriba: nada de
+ * marco, sólo un canto neutro de 1 px. La especificidad (.background +
+ * :dir()) gana a la regla del tema. */
 .nautilus-window.background .sidebar-pane:dir(ltr),
 .nautilus-window.background .sidebar-pane.end:dir(rtl) {
-  box-shadow: inset -1px 0 alpha(currentColor, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 1px 0 0 rgba(255, 255, 255, 0.12),
+    inset -1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.18),
+    inset 0 0 26px rgba(0, 0, 0, 0.17);
 }
 
 .nautilus-window.background .sidebar-pane:dir(rtl),
 .nautilus-window.background .sidebar-pane.end:dir(ltr) {
-  box-shadow: inset 1px 0 alpha(currentColor, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset -1px 0 0 rgba(255, 255, 255, 0.12),
+    inset 1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.18),
+    inset 0 0 26px rgba(0, 0, 0, 0.17);
 }
 
 .nautilus-window .sidebar-pane:backdrop:dir(ltr),
 .nautilus-window .sidebar-pane:backdrop:dir(rtl) {
-  box-shadow: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.14),
+    inset 0 0 26px rgba(0, 0, 0, 0.13);
 }
 
 /* Separadores/undershoot del tema que asumen un fondo opaco. */

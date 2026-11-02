@@ -612,6 +612,18 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         enableGroup.add(warning);
         page.add(enableGroup);
 
+        const nautilusGroup = new Adw.PreferencesGroup({
+            title: _('Óptica Liquid Glass de Nautilus'),
+            description: _('Sólo se aplica a ventanas de Nautilus y sólo con «Opacidad del contenido» en 1.0. Sustituye el cristal genérico por el look del Centro de control: blur más corto, más saturación y brillo, y el borde luminoso del cristal. Requiere el override CSS de Nautilus (scripts/nautilus-glass.sh); sin él, la superficie opaca tapa el cristal y no se nota ningún cambio.'),
+        });
+
+        nautilusGroup.add(this._switchRow(
+            settings,
+            'application-nautilus-glass',
+            _('Activar óptica reforzada en Nautilus'),
+            _('Desactívalo para volver al cristal genérico de application-* en Nautilus. No afecta a otras aplicaciones.')));
+        page.add(nautilusGroup);
+
         const appsGroup = new Adw.PreferencesGroup({
             title: _('Aplicaciones incluidas'),
             description: _('La lista usa el WM_CLASS de la ventana. En Wayland con GTK4 suele ser el app-id; en X11 puede ser el nombre corto (por ejemplo, nautilus).'),
@@ -730,6 +742,7 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
             const active = settings.get_boolean('enable-application-glass') &&
                 settings.get_string('glass-style') === 'liquid';
             appsGroup.set_sensitive(active);
+            nautilusGroup.set_sensitive(active);
             effectGroup.set_sensitive(active);
             advancedGroup.set_sensitive(active);
         };

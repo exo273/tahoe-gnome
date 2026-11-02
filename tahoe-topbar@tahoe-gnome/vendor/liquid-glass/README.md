@@ -75,12 +75,19 @@ cierra con los archivos de la tabla.
    shaders en cada superficie. `reloadShaders()` en desarrollo seguiría usando
    la copia cacheada hasta reiniciar la shell.
 
-7. **`applicationManager.js`: copia literal, sin cambios.** El archivo es
-   idéntico al `dist/applicationManager.js` del commit (mismo SHA-256), porque
-   sus imports relativos (`./rendering/backdropGlass.js`, `./actors.js`,
-   `./animation.js`, `./diagnostics.js`, `./logger.js`) ya coinciden con la
-   disposición de este directorio. La extensión le pasa como `extensionPath`
-   `vendor/liquid-glass`, de donde cuelgan `shaders/`.
+7. **`applicationManager.js`: óptica específica de Nautilus (modificación
+   local).** Sobre la copia del commit se añadió la detección de Nautilus por
+   `Meta.Window.get_wm_class()`, `get_gtk_application_id()` y
+   `get_sandboxed_app_id()`, y un look fijo tomado de `glassLook()` del Centro
+   de control. Cuando `application-nautilus-glass` está activo y la ventana es
+   Nautilus, `_applyAppearance()` usa blur 4, tinte blanco 0.12, brillo 1.04,
+   contraste 1.0 y saturación 1.35 en vez de `application-*`. El rim/specular/
+   sheen (`setSurfaceLightEnabled(true)`) sólo se enciende si
+   `application-content-opacity >= 0.99`; con el contenido translúcido sigue
+   apagado para no dibujar un marco brillante. El resto de aplicaciones y el
+   perfil `desktop-menu` conservan el comportamiento original, incluido
+   `setSurfaceLightEnabled(false)` y `setCornerSmoothingEnabled(false)`. El
+   resto del archivo sigue siendo el código del commit.
 
 Todo lo demás es el código compilado del commit `a3fb66f` sin modificar.
 
@@ -99,7 +106,8 @@ Glass"): `glass-*`, `blur-method`, `shadow-radius`, `shadow-intensity`,
 
 - interruptores: `enable-application-glass` (opt-in, `false` por defecto),
   `application-glass-all-windows` (`false`), `application-corner-on-maximized`
-  (`false`) y `application-glass-on-maximized` (`true`);
+  (`false`), `application-glass-on-maximized` (`true`) y
+  `application-nautilus-glass` (`true`, óptica reforzada sólo para Nautilus);
 - listas: `application-window-whitelist` (por defecto
   `['org.gnome.Nautilus', 'nautilus']`) y `application-window-blacklist`
   (vacía);
@@ -114,6 +122,42 @@ El manager también recorre el perfil `desktop-menu` del upstream al arrancar
 para que el módulo no lea claves inexistentes, pero Tahoe no activa ni expone
 ese perfil. `shadow-radius` y `shadow-intensity` del motor común determinan el
 margen del cristal de las ventanas.
+
+### Óptica de Nautilus (opción B)
+
+`application-nautilus-glass` (por defecto `true`) sólo cambia el material de
+las ventanas que Mutter identifica como Nautilus. Está pensado para el override
+GTK4 de `scripts/nautilus-glass.sh`: la superficie completa queda opaca
+(`application-content-opacity = 1.0`) y el CSS deja un velo base de alfa ~0.52
+únicamente en la barra lateral y las cabeceras, con un gradiente vertical suave,
+highlight blanco de 1 px, oclusión ambiental interior y borde neutro de 1 px.
+Así el cristal del compositor se ve a través de esas franjas, el contenido de
+archivos sigue opaco y el texto mantiene contraste (el CSS añade un
+`text-shadow` oscuro suave para los rótulos).
+
+Con ese ajuste el manager aplica el mismo look que el Centro de control (blur 4,
+tinte blanco 0.12, brillo 1.04, saturación 1.35) y enciende el rim/specular del
+shader. Si se baja `application-content-opacity` por debajo de 0.99, el rim se
+apaga solo para no enmarcar con una línea brillante una superficie que ya es
+translúcida. Desactivar la clave devuelve a Nautilus el cristal genérico de
+`application-*`, sin tocar a las demás apps. En la prueba real el alfa efectivo
+quedó en ~0.536 para la sidebar y ~0.668 para la cabecera (el gradiente y el AO
+suman capas); el contenido midió 1.0 y fue pixel-idéntico antes/después.
+
+**Límite:** el shader dibuja el borde y la refracción en el perímetro del
+rectángulo de cristal, que es el perímetro de la ventana. El CSS sí conoce los
+widgets y por eso puede añadir el canto de 1 px y el acabado de la superficie
+en la sidebar/cabecera, pero no puede pedirle al compositor una lente o
+refracción independiente para el límite interior: eso exigiría una región en
+`BackdropGlass`, y `applicationManager.js` sólo ve el rectángulo de
+`Meta.Window`. En Nautilus real se midieron ~209 px de sidebar y ~71 px de
+cabecera con 1040x680, pero la sidebar pasó a ~188 px con 800x600, se puede
+ocultar con F9 y cambia de tamaño. Una región interior fija (por ejemplo 180 px)
+sería incorrecta en esos casos. `Meta.WindowActor.get_image()` devuelve la
+superficie ya compuesta (alfa 255), no el alfa del cliente, así que tampoco
+sirve para detectar el límite. Por eso la óptica es más marcada que antes y el
+canto interior existe, pero la refracción sigue siendo la del borde exterior:
+no es idéntica al Centro de control.
 
 ## Notas de integración
 
@@ -154,12 +198,16 @@ margen del cristal de las ventanas.
   (`org.gnome.Nautilus`); en X11, el nombre corto (`nautilus`). Nautilus real
   se verificó en una sesión Wayland anidada con WM_CLASS
   `org.gnome.Nautilus`.
-- **Limitación real:** GNOME Shell no inyecta CSS en apps GTK4/GTK3 y el
-  compositor no distingue la barra lateral del resto de la superficie. El
-  efecto vuelve translúcidos el texto y los controles de toda la ventana; no
-  es posible limitarlo a «ciertos lados» ni a un panel interno. Por eso viene
-  apagado por defecto, la lista blanca es explícita y «aplicar a todas las
-  ventanas» está oculto tras una advertencia en preferencias.
+- **Limitación del modo genérico:** GNOME Shell no inyecta CSS en apps
+  GTK4/GTK3. Mientras el cristal sea el que baja la opacidad de la ventana
+  (`application-content-opacity` &lt; 1.0), el texto y los controles de toda la
+  superficie se vuelven translúcidos y el compositor no distingue la barra
+  lateral del resto. La opción B de Nautilus evita eso manteniendo la
+  superficie en 1.0 y dejando el alfa sólo en el CSS; aun así el compositor no
+  puede dibujar el borde interior de la sidebar (ver «Óptica de Nautilus»). Por
+  eso el cristal de ventanas viene apagado por defecto, la lista blanca es
+  explícita y «aplicar a todas las ventanas» está oculto tras una advertencia
+  en preferencias.
 - El cristal de ventanas sólo sigue ventanas del workspace activo y ventanas
   normales/diálogos; los menús emergentes y las ventanas override-redirect se
   dejan intactos. En maximizado se puede conservar o apagar con
