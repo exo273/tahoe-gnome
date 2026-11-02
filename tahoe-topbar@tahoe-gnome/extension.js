@@ -18,6 +18,8 @@ import {TahoeControlCenter} from './controlCenter/controlCenter.js';
 import {TahoeDock} from './dock/dock.js';
 import {TahoeMinimizeAnimation} from './dock/animation.js';
 import {LiquidGlassEngine, glassLook, stageRect} from './liquidGlass.js';
+import {ApplicationManager} from './vendor/liquid-glass/applicationManager.js';
+import {Logger} from './vendor/liquid-glass/logger.js';
 import {TahoeTheme} from './theme.js';
 
 const GLASS_CLASSES = [
@@ -119,6 +121,8 @@ export default class TahoeTopBarExtension extends Extension {
         this._appleGlassHandle = null;
         this._panelGlassHandle = null;
         this._panelGlassKey = '';
+        this._applicationManager = null;
+        this._applicationLogger = null;
 
         this._wallpaperCache = new Map();
         this._wallpaperKey = '';
@@ -1042,6 +1046,11 @@ export default class TahoeTopBarExtension extends Extension {
     _syncGlassEngine() {
         const wanted = this._glassStyle === 'liquid';
 
+        // El manager de ventanas restaura la opacidad de cada superficie, así
+        // que sale antes que el motor que comparte con él los shaders.
+        if (!wanted)
+            this._destroyApplicationGlass();
+
         if (wanted && !this._glassEngine) {
             try {
                 this._setGlassEngine(new LiquidGlassEngine(this));
@@ -1056,11 +1065,15 @@ export default class TahoeTopBarExtension extends Extension {
             engine.destroy();
         }
 
+        this._syncApplicationGlass();
         this._syncAppleGlass();
         this._syncPanelGlass();
     }
 
     _destroyGlass() {
+        // Primero las ventanas: su cleanup restaura la opacidad original y
+        // desconecta las señales antes de que desaparezca el motor.
+        this._destroyApplicationGlass();
         this._destroyAppleGlass();
         this._destroyPanelGlass();
 
@@ -1075,6 +1088,75 @@ export default class TahoeTopBarExtension extends Extension {
         }
         this._glassListeners.clear();
         this._removeGlassClasses();
+    }
+
+    /**
+     * El cristal de ventanas (vendor/liquid-glass/applicationManager.js) no es
+     * un handle del motor de superficies: crea un BackdropGlass dentro de cada
+     * Meta.WindowActor y baja la opacidad de toda la superficie. Se crea sólo
+     * con el estilo liquid y la opción opt-in activa.
+     */
+    _syncApplicationGlass() {
+        const wanted = this._glassStyle === 'liquid' &&
+            Boolean(this._glassEngine) &&
+            Boolean(this._settings?.get_boolean('enable-application-glass')) &&
+            Main.sessionMode.currentMode === 'user';
+
+        if (!wanted) {
+            this._destroyApplicationGlass();
+            return;
+        }
+        if (this._applicationManager)
+            return;
+
+        const logger = new Logger(this._settings);
+        let manager = null;
+        try {
+            const extensionPath = GLib.build_filenamev([
+                this.path, 'vendor', 'liquid-glass',
+            ]);
+            manager = new ApplicationManager(
+                extensionPath, this._settings, logger);
+            manager.setup();
+        } catch (e) {
+            console.error('[tahoe-topbar] No se pudo crear el cristal de ventanas:', e);
+            try {
+                manager?.cleanup();
+            } catch (_cleanupError) {
+                // El manager pudo fallar a medio construir.
+            }
+            try {
+                logger.cleanup();
+            } catch (_cleanupError) {
+                // Sin señales que desconectar.
+            }
+            return;
+        }
+
+        this._applicationManager = manager;
+        this._applicationLogger = logger;
+    }
+
+    _destroyApplicationGlass() {
+        const manager = this._applicationManager;
+        this._applicationManager = null;
+        if (manager) {
+            try {
+                manager.cleanup();
+            } catch (e) {
+                console.error('[tahoe-topbar] Error al destruir el cristal de ventanas:', e);
+            }
+        }
+
+        const logger = this._applicationLogger;
+        this._applicationLogger = null;
+        if (logger) {
+            try {
+                logger.cleanup();
+            } catch (e) {
+                console.error('[tahoe-topbar] Error al cerrar el logger de ventanas:', e);
+            }
+        }
     }
 
     _applyGlassClasses() {
@@ -1720,6 +1802,7 @@ export default class TahoeTopBarExtension extends Extension {
             this._menuBar.actor.visible = isUser;
 
         if (!isUser) {
+            this._destroyApplicationGlass();
             this._destroyDock();
             this._destroyControlCenter();
             this._destroyPanelGlass();
@@ -1735,6 +1818,7 @@ export default class TahoeTopBarExtension extends Extension {
         this._applyControlCenter();
         this._applyDock();
         this._updateSolidState();
+        this._syncApplicationGlass();
     }
 
     // ------------------------------------------------------------------
@@ -1772,6 +1856,9 @@ export default class TahoeTopBarExtension extends Extension {
             break;
         case 'glass-style':
             this._applyGlassStyle();
+            break;
+        case 'enable-application-glass':
+            this._syncApplicationGlass();
             break;
         case 'panel-glass':
             this._applyPanelAppearance();

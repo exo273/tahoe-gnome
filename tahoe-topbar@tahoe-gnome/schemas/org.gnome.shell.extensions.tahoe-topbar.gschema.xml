@@ -340,6 +340,154 @@
       <default><![CDATA[['<Control><Alt>l']]]></default>
       <summary>Atajo del volcado periódico de diagnósticos</summary>
     </key>
+
+    <!-- ===== Cristal en ventanas de aplicaciones ===== -->
+    <!-- Claves con los nombres que lee vendor/liquid-glass/applicationManager.js
+         (copia de Liquid Glass, MIT). El perfil "desktop-menu" del upstream
+         también se declara porque el manager lo consulta al arrancar, aunque
+         esta extensión no lo activa ni lo expone. -->
+    <key name="enable-application-glass" type="b">
+      <default>false</default>
+      <summary>Cristal Liquid Glass en ventanas de aplicaciones</summary>
+      <description>Activa el efecto en las ventanas cuya clase esté en la lista blanca. Es opt-in: apagado por defecto. Afecta a toda la superficie de la ventana, no sólo a una barra lateral.</description>
+    </key>
+    <key name="application-glass-all-windows" type="b">
+      <default>false</default>
+      <summary>Aplicar a todas las ventanas</summary>
+      <description>Ignora la lista blanca y aplica el cristal a cualquier ventana normal o de diálogo. La lista negra se sigue respetando. Apagado por defecto.</description>
+    </key>
+    <key name="application-window-whitelist" type="as">
+      <default><![CDATA[['org.gnome.Nautilus', 'nautilus']]]></default>
+      <summary>Clases de ventana incluidas (WM_CLASS)</summary>
+      <description>Nombres de WM_CLASS (xprop WM_CLASS) que reciben el cristal. La comparación no distingue mayúsculas. En Wayland GTK4 suele usarse el app-id, p. ej. org.gnome.Nautilus; en X11, nautilus.</description>
+    </key>
+    <key name="application-window-blacklist" type="as">
+      <default>[]</default>
+      <summary>Clases de ventana excluidas (WM_CLASS)</summary>
+      <description>Nombres de WM_CLASS que nunca reciben el cristal. Sólo se consulta cuando «aplicar a todas las ventanas» está activo.</description>
+    </key>
+    <key name="application-corner-on-maximized" type="b">
+      <default>false</default>
+      <summary>Esquinas redondeadas en ventanas maximizadas</summary>
+    </key>
+    <key name="application-glass-on-maximized" type="b">
+      <default>true</default>
+      <summary>Mantener el cristal en ventanas maximizadas</summary>
+    </key>
+    <key name="application-tint-color" type="s">
+      <default>'#ffffff'</default>
+      <summary>Color del tinte (hex)</summary>
+    </key>
+    <key name="application-tint-strength" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.20</default>
+      <summary>Intensidad del tinte</summary>
+    </key>
+    <key name="application-blur-radius" type="i">
+      <range min="0" max="100"/>
+      <default>12</default>
+      <summary>Radio del desenfoque (px)</summary>
+    </key>
+    <key name="application-corner-radius" type="d">
+      <range min="0" max="60"/>
+      <default>18.0</default>
+      <summary>Radio de las esquinas (px)</summary>
+    </key>
+    <key name="application-content-opacity" type="d">
+      <range min="0.5" max="1.0"/>
+      <default>0.88</default>
+      <summary>Opacidad del contenido de la ventana</summary>
+      <description>Opacidad de toda la superficie de la ventana para dejar ver el cristal. 1.0 no modifica la ventana; 0.88 es el valor recomendado; 0.5 es el mínimo legible.</description>
+    </key>
+    <key name="application-brightness" type="d">
+      <range min="0.0" max="2.0"/>
+      <default>1.0</default>
+      <summary>Brillo del cristal</summary>
+    </key>
+    <key name="application-contrast" type="d">
+      <range min="0.0" max="2.0"/>
+      <default>1.0</default>
+      <summary>Contraste del cristal</summary>
+    </key>
+    <key name="application-saturation" type="d">
+      <range min="0.0" max="2.0"/>
+      <default>1.0</default>
+      <summary>Saturación del cristal</summary>
+    </key>
+    <key name="application-outline-enabled" type="b">
+      <default>false</default>
+      <summary>Borde de la ventana</summary>
+      <description>Dibuja una línea en el borde visible del cristal, dentro de la sombra.</description>
+    </key>
+    <key name="application-outline-width" type="d">
+      <range min="0.5" max="10"/>
+      <default>1.0</default>
+      <summary>Grosor del borde de la ventana</summary>
+    </key>
+    <key name="application-outline-color" type="s">
+      <default>'#000000'</default>
+      <summary>Color del borde de la ventana (hex)</summary>
+    </key>
+    <!-- Perfil del menú del escritorio del upstream. No se expone en
+         preferencias: applicationManager.js consulta las claves al arrancar,
+         así que deben existir con los valores del esquema original. -->
+    <key name="enable-desktop-menu-glass" type="b">
+      <default>false</default>
+      <summary>Cristal en el menú del escritorio (sin interfaz)</summary>
+    </key>
+    <key name="desktop-menu-tint-color" type="s">
+      <default>'#ffffff'</default>
+      <summary>Tinte del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-tint-strength" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.20</default>
+      <summary>Intensidad del tinte del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-blur-radius" type="i">
+      <range min="0" max="100"/>
+      <default>8</default>
+      <summary>Desenfoque del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-corner-radius" type="d">
+      <range min="0" max="60"/>
+      <default>12.0</default>
+      <summary>Radio del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-content-opacity" type="d">
+      <range min="0.5" max="1.0"/>
+      <default>0.90</default>
+      <summary>Opacidad del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-brightness" type="d">
+      <range min="0.0" max="2.0"/>
+      <default>1.0</default>
+      <summary>Brillo del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-contrast" type="d">
+      <range min="0.0" max="2.0"/>
+      <default>1.0</default>
+      <summary>Contraste del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-saturation" type="d">
+      <range min="0.0" max="2.0"/>
+      <default>1.0</default>
+      <summary>Saturación del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-outline-enabled" type="b">
+      <default>false</default>
+      <summary>Borde del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-outline-width" type="d">
+      <range min="0.5" max="10"/>
+      <default>1.0</default>
+      <summary>Grosor del borde del menú del escritorio</summary>
+    </key>
+    <key name="desktop-menu-outline-color" type="s">
+      <default>'#000000'</default>
+      <summary>Color del borde del menú del escritorio</summary>
+    </key>
+
     <!-- ===== Dock Tahoe ===== -->
     <key name="dock-enabled" type="b"><default>true</default><summary>Activar dock Tahoe</summary></key>
     <key name="dock-icon-size" type="i"><range min="16" max="96"/><default>48</default><summary>Tamaño de iconos del dock</summary></key>

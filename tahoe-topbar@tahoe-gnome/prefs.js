@@ -91,6 +91,27 @@ const GLASS_TUNING_KEYS = [
 
 const LIQUID_GLASS_URL = 'https://github.com/ryohsuke1231/liquid-glass';
 
+// Apps que se ofrecen con una casilla. Los alias cubren el app-id de Wayland
+// (GTK4) y el WM_CLASS que suele reportar X11. No se importa Shell en las
+// preferencias: la lista se construye con Gio.AppInfo.
+const APPLICATION_SHORTCUTS = [
+    {
+        id: 'org.gnome.Nautilus',
+        label: 'Archivos (Nautilus)',
+        aliases: ['org.gnome.Nautilus', 'nautilus'],
+    },
+    {
+        id: 'org.gnome.TextEditor',
+        label: 'Editor de texto',
+        aliases: ['org.gnome.TextEditor', 'gnome-text-editor'],
+    },
+    {
+        id: 'org.gnome.Calculator',
+        label: 'Calculadora',
+        aliases: ['org.gnome.Calculator', 'gnome-calculator'],
+    },
+];
+
 const ABOUT_TEXT_FIELDS = [
     {
         key: 'about-title',
@@ -197,6 +218,7 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
 
         window.add(this._buildBarPage(window, settings));
         window.add(this._buildDockPage(window, settings));
+        window.add(this._buildWindowsPage(window, settings));
         window.add(this._buildControlCenterPage(window, settings));
         window.add(this._buildGlassPage(window, settings));
         window.add(this._buildAboutMacPage(window, settings));
@@ -265,6 +287,52 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         if (tooltip)
             row.set_tooltip_text(tooltip);
         settings.bind(key, row, 'text', Gio.SettingsBindFlags.DEFAULT);
+        return row;
+    }
+
+    /**
+     * Fila de texto para una clave de tipo `as`. No se puede enlazar con
+     * `bind`: la clave GSettings es una lista de cadenas y el EntryRow un
+     * string. Se convierte en ambos sentidos, separando por comas.
+     */
+    _stringListRow(settings, key, title, tooltip = null) {
+        const row = new Adw.EntryRow({title});
+        if (tooltip)
+            row.set_tooltip_text(tooltip);
+
+        let syncing = false;
+        const syncFromSettings = () => {
+            syncing = true;
+            row.set_text(settings.get_strv(key).join(', '));
+            syncing = false;
+        };
+
+        row.connect('changed', () => {
+            if (syncing)
+                return;
+
+            const seen = new Set();
+            const values = [];
+            for (const part of row.get_text().split(',')) {
+                const value = part.trim();
+                if (!value)
+                    continue;
+                const folded = value.toLowerCase();
+                if (seen.has(folded))
+                    continue;
+                seen.add(folded);
+                values.push(value);
+            }
+
+            const current = settings.get_strv(key);
+            const unchanged = current.length === values.length &&
+                current.every((value, index) => value === values[index]);
+            if (!unchanged)
+                settings.set_strv(key, values);
+        });
+
+        settings.connect(`changed::${key}`, syncFromSettings);
+        syncFromSettings();
         return row;
     }
 
@@ -509,6 +577,166 @@ export default class TahoeTopBarPreferences extends ExtensionPreferences {
         });
         grid.add(iconRow);
         page.add(grid);
+        return page;
+    }
+
+    // ------------------------------------------------------------------
+    // Página «Ventanas»
+    // ------------------------------------------------------------------
+
+    _buildWindowsPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: _('Ventanas'),
+            icon_name: 'window-new-symbolic',
+        });
+
+        const enableGroup = new Adw.PreferencesGroup({
+            title: _('Cristal en ventanas de aplicaciones'),
+            description: _('Sólo se aplica con el estilo Liquid Glass. Es una opción opt-in y afecta a la superficie completa de la ventana.'),
+        });
+
+        enableGroup.add(this._switchRow(
+            settings,
+            'enable-application-glass',
+            _('Activar cristal en ventanas'),
+            _('Por defecto incluye Nautilus; añade o quita apps en la lista de abajo.')));
+
+        const warning = new Adw.ActionRow({
+            title: _('No aísla la barra lateral'),
+            subtitle: _('El cristal baja la opacidad de toda la ventana, incluidos el texto y los controles, y se dibuja detrás de ella. GNOME Shell no puede inyectar CSS en apps GTK4, así que no es posible limitarlo a la barra lateral ni a una zona concreta.'),
+        });
+        const warningIcon = Gtk.Image.new_from_icon_name('dialog-warning-symbolic');
+        warningIcon.add_css_class('dim-label');
+        warning.add_prefix(warningIcon);
+        warning.set_activatable(false);
+        enableGroup.add(warning);
+        page.add(enableGroup);
+
+        const appsGroup = new Adw.PreferencesGroup({
+            title: _('Aplicaciones incluidas'),
+            description: _('La lista usa el WM_CLASS de la ventana. En Wayland con GTK4 suele ser el app-id; en X11 puede ser el nombre corto (por ejemplo, nautilus).'),
+        });
+
+        const installed = new Map();
+        for (const appInfo of Gio.AppInfo.get_all()) {
+            const id = appInfo.get_id();
+            if (id)
+                installed.set(id, appInfo);
+        }
+
+        const listKey = 'application-window-whitelist';
+        for (const shortcut of APPLICATION_SHORTCUTS) {
+            const desktop = installed.get(`${shortcut.id}.desktop`);
+            if (!desktop)
+                continue;
+
+            const startupClass = desktop.get_startup_wm_class?.() ?? '';
+            const unique = new Map();
+            for (const alias of [...shortcut.aliases, startupClass]) {
+                if (alias)
+                    unique.set(alias.toLowerCase(), alias);
+            }
+            const aliases = [...unique.values()];
+
+            const row = new Adw.ActionRow({
+                title: _(shortcut.label),
+                subtitle: aliases.join(', '),
+            });
+            const check = new Gtk.CheckButton({valign: Gtk.Align.CENTER});
+            row.add_suffix(check);
+            row.set_activatable_widget(check);
+
+            let syncing = false;
+            const refresh = () => {
+                const current = settings.get_strv(listKey)
+                    .map(value => value.toLowerCase());
+                syncing = true;
+                check.set_active(aliases.some(alias =>
+                    current.includes(alias.toLowerCase())));
+                syncing = false;
+            };
+
+            check.connect('toggled', () => {
+                if (syncing)
+                    return;
+
+                const folded = new Set(aliases.map(alias => alias.toLowerCase()));
+                const values = settings.get_strv(listKey)
+                    .filter(value => !folded.has(value.toLowerCase()));
+                if (check.get_active())
+                    values.push(...aliases);
+                settings.set_strv(listKey, values);
+            });
+
+            settings.connect(`changed::${listKey}`, refresh);
+            refresh();
+            appsGroup.add(row);
+        }
+
+        appsGroup.add(this._stringListRow(
+            settings,
+            listKey,
+            _('Otras clases de ventana (WM_CLASS)'),
+            _('Lista separada por comas. Se comparan sin distinguir mayúsculas. En X11 puedes ver el WM_CLASS con xprop WM_CLASS.')));
+        page.add(appsGroup);
+
+        const effectGroup = new Adw.PreferencesGroup({
+            title: _('Efecto'),
+            description: _('Los cambios se aplican en vivo a las ventanas incluidas.'),
+        });
+
+        effectGroup.add(this._doubleSpinRow(
+            settings,
+            'application-content-opacity',
+            _('Opacidad del contenido'),
+            _('1.0 deja la ventana intacta; 0.88 es el valor recomendado; 0.5 es el mínimo legible.'),
+            0.5, 1.0, 0.01, 2));
+
+        effectGroup.add(this._doubleSpinRow(
+            settings,
+            'application-corner-radius',
+            _('Radio de las esquinas'),
+            _('En píxeles. Se aplica al cristal, no a la ventana GTK.'),
+            0, 60, 1, 0));
+
+        effectGroup.add(this._spinRow(
+            settings,
+            'application-blur-radius',
+            _('Radio del desenfoque'),
+            _('En píxeles.'),
+            0, 100));
+
+        page.add(effectGroup);
+
+        const advancedGroup = new Adw.PreferencesGroup({
+            title: _('Avanzado'),
+            description: _('Úsalo con cuidado: afecta a todas las ventanas, no sólo a las de la lista.'),
+        });
+
+        advancedGroup.add(this._switchRow(
+            settings,
+            'application-glass-all-windows',
+            _('Aplicar a todas las ventanas'),
+            _('Ignora la lista blanca. Se siguen excluyendo menús y se respeta la lista negra. El texto y los controles de todas las apps se vuelven translúcidos.')));
+
+        advancedGroup.add(this._stringListRow(
+            settings,
+            'application-window-blacklist',
+            _('Excluir clases de ventana (WM_CLASS)'),
+            _('Sólo se consulta con «Aplicar a todas las ventanas» activo. Separa los nombres con comas.')));
+        page.add(advancedGroup);
+
+        const syncSensitive = () => {
+            const active = settings.get_boolean('enable-application-glass') &&
+                settings.get_string('glass-style') === 'liquid';
+            appsGroup.set_sensitive(active);
+            effectGroup.set_sensitive(active);
+            advancedGroup.set_sensitive(active);
+        };
+        settings.connect('changed::enable-application-glass', syncSensitive);
+        settings.connect('changed::glass-style', syncSensitive);
+        syncSensitive();
+
         return page;
     }
 

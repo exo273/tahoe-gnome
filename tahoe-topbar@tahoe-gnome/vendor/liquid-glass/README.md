@@ -1,8 +1,9 @@
 # Liquid Glass engine (vendor)
 
 Motor de renderizado de la extensión **Liquid Glass** de GNOME Shell,
-integrado en Tahoe Top Bar. Esta copia sólo dibuja cristal; no incluye la UI
-de preferencias, los managers de superficies ni los workers.
+integrado en Tahoe Top Bar. Esta copia dibuja cristal y aplica el efecto a
+ventanas de aplicaciones; no incluye la UI de preferencias, los managers de
+superficies del chrome ni los workers.
 
 - Origen: <https://github.com/ryohsuke1231/liquid-glass>
 - Commit copiado: `a3fb66f7cfd9eb1a77cb3def03ec0dff0bf193c9` (2026-10-24)
@@ -23,13 +24,17 @@ Desde `liquid-glass@thinkingcoding1231.gmail.com/`:
 | `animation.js` | `dist/animation.js` | `hexToColorArray` (color del tinte) y `startSyncLoop`/`stopStageLoop` (sync por frame). |
 | `diagnostics.js` | `dist/diagnostics.js` | `registerGlass`/`unregisterGlass`, que `backdropGlass.js` llama al crear y limpiar cada cristal. |
 | `logger.js` | `dist/logger.js` | Logger gateado por `output-logs`, compartido por el motor. |
+| `applicationManager.js` | `dist/applicationManager.js` | Aplica un `BackdropGlass` debajo de la superficie de cada `Meta.WindowActor` incluido y baja la opacidad de **toda** la superficie de la ventana. |
 | `shaders/glass.frag` | `shaders/glass.frag` | Shader principal: refracción, blur, tinte, borde, sombra y multi-región. |
 | `shaders/downsample.frag` | `shaders/downsample.frag` | Bajada de resolución del blur Dual Kawase. |
 | `shaders/upsample.frag` | `shaders/upsample.frag` | Subida de resolución del blur Dual Kawase. |
 
 No se copiaron `uiManager.js`, `topBarManager.js`, `quickSettingsManager.js`
-ni el resto de managers: la adaptación a nuestra API vive en
-`liquidGlass.js`, en la raíz de la extensión.
+ni el resto de managers del chrome: la adaptación a nuestra API vive en
+`liquidGlass.js`, en la raíz de la extensión. La excepción es
+`applicationManager.js`, que se copió tal cual porque no depende de la API de
+superficies de Tahoe: recibe `extensionPath`, `settings` y `logger`, y crea
+sus propios `BackdropGlass` dentro de los actores de Mutter.
 
 No hizo falta ningún stub: el grafo de imports de estos nueve módulos se
 cierra con los archivos de la tabla.
@@ -70,6 +75,13 @@ cierra con los archivos de la tabla.
    shaders en cada superficie. `reloadShaders()` en desarrollo seguiría usando
    la copia cacheada hasta reiniciar la shell.
 
+7. **`applicationManager.js`: copia literal, sin cambios.** El archivo es
+   idéntico al `dist/applicationManager.js` del commit (mismo SHA-256), porque
+   sus imports relativos (`./rendering/backdropGlass.js`, `./actors.js`,
+   `./animation.js`, `./diagnostics.js`, `./logger.js`) ya coinciden con la
+   disposición de este directorio. La extensión le pasa como `extensionPath`
+   `vendor/liquid-glass`, de donde cuelgan `shaders/`.
+
 Todo lo demás es el código compilado del commit `a3fb66f` sin modificar.
 
 ## Settings
@@ -81,6 +93,27 @@ rangos y valores por defecto que el esquema original (bloque "Motor Liquid
 Glass"): `glass-*`, `blur-method`, `shadow-radius`, `shadow-intensity`,
 `output-logs`, `glass-debug-diagnostics`, `enable-dump-shortcut` y
 `dump-loop-keybinding`.
+
+`applicationManager.js` lee su propio bloque, también en el esquema de Tahoe
+(`Cristal en ventanas de aplicaciones`):
+
+- interruptores: `enable-application-glass` (opt-in, `false` por defecto),
+  `application-glass-all-windows` (`false`), `application-corner-on-maximized`
+  (`false`) y `application-glass-on-maximized` (`true`);
+- listas: `application-window-whitelist` (por defecto
+  `['org.gnome.Nautilus', 'nautilus']`) y `application-window-blacklist`
+  (vacía);
+- apariencia: `application-tint-color`, `application-tint-strength`,
+  `application-blur-radius`, `application-corner-radius` (18 px),
+  `application-content-opacity` (0.88, rango 0.5–1.0),
+  `application-brightness`, `application-contrast`,
+  `application-saturation` y `application-outline-*`.
+
+El manager también recorre el perfil `desktop-menu` del upstream al arrancar
+(`enable-desktop-menu-glass`, `desktop-menu-*`). Esas claves están declaradas
+para que el módulo no lea claves inexistentes, pero Tahoe no activa ni expone
+ese perfil. `shadow-radius` y `shadow-intensity` del motor común determinan el
+margen del cristal de las ventanas.
 
 ## Notas de integración
 
@@ -109,3 +142,32 @@ Glass"): `glass-*`, `blur-method`, `shadow-radius`, `shadow-intensity`,
   en `tools/backdrop-spike/lg-driver@liquid-glass.test`.
 - En modo multi-región el shader usa un único `corner_radius` para todas las
   regiones; no hay radio por región.
+- **Ventanas de aplicaciones.** `extension.js` crea un `ApplicationManager`
+  sólo cuando `glass-style = liquid` y `enable-application-glass = true`, y lo
+  destruye antes que `LiquidGlassEngine` (también al bloquear la sesión). El
+  manager no usa los handles del motor: inserta un `BackdropGlass` debajo del
+  `surfaceActor` de cada `Meta.WindowActor` y baja la opacidad de toda la
+  superficie a `application-content-opacity` (0.88 → 224/255). Su `cleanup()`
+  restaura la opacidad original y desconecta las señales de ventana.
+- La lista blanca compara `Meta.Window.get_wm_class()` sin distinguir
+  mayúsculas. En Wayland con GTK4 suele ser el app-id
+  (`org.gnome.Nautilus`); en X11, el nombre corto (`nautilus`). Nautilus real
+  se verificó en una sesión Wayland anidada con WM_CLASS
+  `org.gnome.Nautilus`.
+- **Limitación real:** GNOME Shell no inyecta CSS en apps GTK4/GTK3 y el
+  compositor no distingue la barra lateral del resto de la superficie. El
+  efecto vuelve translúcidos el texto y los controles de toda la ventana; no
+  es posible limitarlo a «ciertos lados» ni a un panel interno. Por eso viene
+  apagado por defecto, la lista blanca es explícita y «aplicar a todas las
+  ventanas» está oculto tras una advertencia en preferencias.
+- El cristal de ventanas sólo sigue ventanas del workspace activo y ventanas
+  normales/diálogos; los menús emergentes y las ventanas override-redirect se
+  dejan intactos. En maximizado se puede conservar o apagar con
+  `application-glass-on-maximized`.
+- El `before-update` del stage sólo corre cuando el compositor pinta. En una
+  sesión headless recién arrancada con la vista general abierta el
+  `window_group` está oculto y los actores no están `mapped`; hay que cerrar
+  la vista general para probar el efecto. En una sesión real esto no ocurre.
+- Las capturas con `Shell.Screenshot` no garantizan ver el cristal de
+  ventanas; el arnés `/tmp/opencode/nested-windows` usa una cámara que copia el
+  framebuffer durante el paint, como el resto de pruebas visuales del motor.
