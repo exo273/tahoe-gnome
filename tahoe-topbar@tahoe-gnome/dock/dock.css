@@ -22,6 +22,19 @@
     transition-duration: 120ms;
 }
 
+/*
+ * Con el dock abajo, cada item mide icono + zona reservada del indicador
+ * (7 px). El punto vive en esa zona, debajo del icono; por eso el padding
+ * superior debe incluirla para que el icono quede centrado: 1 px de borde +
+ * 10 px arriba = 7 px de indicador + 3 px abajo + 1 px de borde. Así los
+ * items sin punto (carpetas, papelera, apps cerradas) no muestran más aire
+ * abajo que arriba. En left/right se conserva el padding simétrico base,
+ * porque el eje vertical del dock es el de apilado de los items.
+ */
+.tahoe-dock.tahoe-dock-bottom {
+    padding: 10px 8px 3px;
+}
+
 .tahoe-theme-dark .tahoe-dock {
     border-color: rgba(255, 255, 255, 0.18);
     background-color: rgba(28, 28, 30, 0.62);

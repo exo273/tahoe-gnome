@@ -98,6 +98,10 @@ export class TahoeDock {
         this._favoriteApps = [];
         this._extraApps = [];
         this._favoritesOverride = [];
+        this._dragSession = null;
+        this._dropIndicator = null;
+        this._dropIndicatorIndex = -1;
+        this._dragMonitor = null;
 
         this._signalIds = [];
         this._windowSignalIds = [];
@@ -169,6 +173,7 @@ export class TahoeDock {
 
         this._buildRoot();
         this._buildTooltip();
+        this._connectDragMonitor();
 
         this._menuManager = new PopupMenu.PopupMenuManager(this._root);
         this._createModels();
@@ -473,6 +478,15 @@ export class TahoeDock {
             visible: true,
         });
         this._reserveChrome = false;
+        try {
+            // El actor de reserva cubre el dock y se pinta por encima de él.
+            // DND usa PickMode.ALL, así que reactive:false no basta: sin esto
+            // cualquier drop sobre el dock acabaría en el padre de la reserva
+            // (uiGroup) y nunca llegaría a TahoeDock.handleDragOver().
+            Shell.util_set_hidden_from_pick(this._reserve, true);
+        } catch (e) {
+            console.warn(`${LOG} No se pudo ocultar la reserva del picking:`, e);
+        }
         this._reserve.connect('destroy', () => {
             if (this._reserve) {
                 this._reserve = null;
@@ -1052,6 +1066,7 @@ export class TahoeDock {
 
     _destroyItems() {
         this._hideTooltip();
+        this._hideDropIndicator(false);
         for (const item of [...this._items]) {
             if (!item)
                 continue;
@@ -1136,6 +1151,7 @@ export class TahoeDock {
         if (!this._enabled) {
             this._cancelHideTimer();
             this._resetMagnification(true);
+            this._hideDropIndicator(false);
             this._root?.hide();
             if (this._root)
                 this._root.reactive = false;
@@ -1784,8 +1800,14 @@ export class TahoeDock {
     }
 
     _canEditFavorites() {
-        if (this._usingCustomFavorites())
-            return Boolean(this._settings);
+        if (this._usingCustomFavorites()) {
+            try {
+                return Boolean(this._settings?.is_writable?.('dock-favorites') ??
+                    this._settings);
+            } catch (_e) {
+                return Boolean(this._settings);
+            }
+        }
         try {
             return global.settings.is_writable('favorite-apps');
         } catch (_e) {
@@ -1941,6 +1963,9 @@ export class TahoeDock {
     }
 
     _insertFavorite(app, position) {
+        if (!app || !this._canEditFavorites())
+            return;
+
         const id = app.get_id();
 
         if (this._usingCustomFavorites()) {
@@ -1948,6 +1973,7 @@ export class TahoeDock {
             const index = clamp(position, 0, list.length);
             list.splice(index, 0, id);
             this._settings?.set_strv('dock-favorites', list);
+            console.log(`${LOG} favorito insertado ${id} en ${index} (dock-favorites)`);
             return;
         }
 
@@ -1956,14 +1982,48 @@ export class TahoeDock {
                 this._appFavorites.moveFavoriteToPos(id, position);
             else
                 this._appFavorites.addFavoriteAtPos(id, position);
+            console.log(`${LOG} favorito insertado ${id} en ${position} (favorite-apps)`);
         } catch (e) {
             console.error(`${LOG} No se pudo reordenar ${id}:`, e);
         }
     }
 
+    _unfavorite(app, reason = '') {
+        if (this._destroyed || !app || !this._canEditFavorites())
+            return false;
+
+        const id = app.get_id();
+        if (!id || !this._isFavorite(app))
+            return false;
+
+        if (this._usingCustomFavorites()) {
+            const list = this._favoritesOverride.filter(entry => entry !== id);
+            try {
+                this._settings?.set_strv('dock-favorites', list);
+            } catch (e) {
+                console.error(`${LOG} No se pudo desanclar ${id} del dock:`, e);
+                return false;
+            }
+        } else {
+            try {
+                this._appFavorites.removeFavorite(id);
+            } catch (e) {
+                console.error(`${LOG} No se pudo desanclar ${id}:`, e);
+                return false;
+            }
+        }
+
+        console.log(`${LOG} desanclado ${id}${reason ? ` (${reason})` : ''}`);
+        return true;
+    }
+
     _appFromDragSource(source) {
         if (!source)
             return null;
+        // Fuente del propio dock: DockDragSource (sin .app para que otros
+        // targets del shell no abran ventanas al soltar fuera).
+        if (source._dockItem?.app)
+            return source._dockItem.app;
         if (source.app)
             return source.app;
         if (source._delegate?.app)
@@ -1971,22 +2031,372 @@ export class TahoeDock {
         return null;
     }
 
-    handleDragOver(source, _actor, _x, _y, _time) {
+    /* ------------------------------------------------------------------ */
+    /* Indicador de inserción y sesión de arrastre                         */
+    /* ------------------------------------------------------------------ */
+
+    _connectDragMonitor() {
+        if (this._dragMonitor)
+            return;
+
+        this._dragMonitor = {
+            dragMotion: event => this._onDragMonitorMotion(event),
+            dragDrop: event => this._onDragMonitorDrop(event),
+        };
+
+        try {
+            DND.addDragMonitor(this._dragMonitor);
+        } catch (e) {
+            console.error(`${LOG} No se pudo conectar el monitor DND:`, e);
+            this._dragMonitor = null;
+        }
+    }
+
+    _onDragMonitorMotion(event) {
+        if (!this._destroyed && this._dropIndicatorIndex >= 0 &&
+            !this._isPointInsideDock(event.x, event.y))
+            this._hideDropIndicator();
+
+        return DND.DragMotionResult.CONTINUE;
+    }
+
+    _onDragMonitorDrop(event) {
+        if (!this._destroyed && this._dragSession) {
+            let x = event.x;
+            let y = event.y;
+            try {
+                [x, y] = event.clutterEvent.get_coords();
+            } catch (_e) {
+                // Algunos consumidores no entregan el evento Clutter.
+            }
+            const inside = this._isPointInsideDock(x, y);
+            this._dragSession.drop = {x, y, inside};
+            console.log(`${LOG} drop ${inside ? 'dentro' : 'fuera'} del dock ` +
+                `(${Math.round(x)},${Math.round(y)})`);
+        }
+
+        this._hideDropIndicator(false);
+        return DND.DragDropResult.CONTINUE;
+    }
+
+    _isPointInsideDock(x, y) {
+        if (!this._root || !this._root.visible || !this._root.mapped)
+            return false;
+
+        const rect = this._root.get_transformed_extents();
+        return x >= rect.origin.x && x <= rect.origin.x + rect.size.width &&
+            y >= rect.origin.y && y <= rect.origin.y + rect.size.height;
+    }
+
+    _isOverDockControl(x, y) {
+        // Papelera, Descargas, montajes y rejilla de apps no son zonas de
+        // inserción de favoritos. Soltar ahí no debe reordenar ni desanclar.
+        for (const item of this._controlItems) {
+            const actor = item.actor;
+            if (!actor || item._destroyed)
+                continue;
+            if (x >= actor.x && x <= actor.x + actor.width &&
+                y >= actor.y && y <= actor.y + actor.height)
+                return true;
+        }
+        return false;
+    }
+
+    _onItemDragBegin(item) {
+        if (this._destroyed || !item)
+            return;
+
+        this._hideTooltip();
+        this._dragSession = {
+            item,
+            app: item.app,
+            favorite: Boolean(item.isFavorite),
+            drop: null,
+        };
+        console.log(`${LOG} drag-begin ${item.app?.get_id?.() ?? '?'} ` +
+            `favorito=${item.isFavorite}`);
+    }
+
+    _onItemDragCancelled(item) {
+        if (this._destroyed || this._dragSession?.item !== item)
+            return;
+        this._hideDropIndicator();
+        console.log(`${LOG} drag-cancelled ${item.app?.get_id?.() ?? '?'}`);
+    }
+
+    _onItemDestroyed(item) {
+        // Un rebuild puede destruir el actor de origen mientras se arrastra.
+        // Se limpia la sesión sin tocar favoritos: destruir no es un drop.
+        if (this._dragSession?.item !== item)
+            return;
+        this._dragSession = null;
+        this._hideDropIndicator();
+        console.log(`${LOG} drag-session limpiada al destruir ` +
+            `${item.app?.get_id?.() ?? '?'}`);
+    }
+
+    _onItemDragEnd(item, success) {
+        const session = this._dragSession;
+        this._dragSession = null;
+        this._hideDropIndicator();
+
+        if (!session || session.item !== item)
+            return;
+
+        const drop = session.drop;
+        console.log(`${LOG} drag-end ${session.app?.get_id?.() ?? '?'} ` +
+            `success=${Boolean(success)} ` +
+            `drop=${drop ? (drop.inside ? 'dentro' : 'fuera') : 'ninguno'}`);
+
+        // Sin un drop real (Esc, destrucción del actor, cancelación) no se
+        // toca la lista de favoritos. Sólo un favorito soltado fuera del dock
+        // se desancla; si la app sigue en ejecución se reconstruirá como
+        // icono de app en ejecución.
+        if (!drop || drop.inside || !session.favorite ||
+            !this._canEditFavorites() || !this._isFavorite(session.app))
+            return;
+
+        const app = session.app;
+        this._later(() => {
+            if (!this._destroyed && this._isFavorite(app))
+                this._unfavorite(app, 'arrastrado fuera del dock');
+        });
+    }
+
+    _createDropIndicator() {
+        if (this._dropIndicator)
+            return this._dropIndicator;
+
+        const indicator = new St.Widget({
+            name: 'tahoe-dock-drop-indicator',
+            style_class: 'tahoe-dock-drop-indicator',
+            style: 'background-color: rgba(10, 132, 255, 0.95);' +
+                'border-radius: 2px;' +
+                'box-shadow: 0 0 6px rgba(10, 132, 255, 0.75);',
+            reactive: false,
+            can_focus: false,
+            track_hover: false,
+            visible: false,
+            opacity: 0,
+        });
+
+        const group = Main.layoutManager.uiGroup ?? Main.uiGroup;
+        try {
+            group.add_child(indicator);
+            group.set_child_above_sibling(indicator, null);
+            // No debe interceptar el picking de DND (PickMode.ALL).
+            Shell.util_set_hidden_from_pick(indicator, true);
+        } catch (e) {
+            console.error(`${LOG} No se pudo añadir el indicador de inserción:`, e);
+            indicator.destroy();
+            return null;
+        }
+
+        indicator.connect('destroy', () => {
+            if (this._dropIndicator === indicator)
+                this._dropIndicator = null;
+        });
+
+        this._dropIndicator = indicator;
+        return indicator;
+    }
+
+    _favoriteSlotRect(index) {
+        const items = this._favoriteItems.filter(item =>
+            !item._destroyed && item.actor);
+        const vertical = this._position !== 'bottom';
+        const thickness = Math.max(2, this._px(3));
+        const gap = Math.max(2, this._px(4));
+        const barSize = Math.max(this._px(12), this._iconSizePx + this._px(4));
+        const rootRect = this._root.get_transformed_extents();
+        let along;
+
+        if (items.length === 0) {
+            const firstApp = this._appItems.find(item =>
+                !item._destroyed && item.actor)?.actor;
+            if (firstApp) {
+                const rect = firstApp.get_transformed_extents();
+                along = vertical
+                    ? rect.origin.y - gap / 2
+                    : rect.origin.x - gap / 2;
+            } else {
+                along = vertical
+                    ? rootRect.origin.y + gap
+                    : rootRect.origin.x + gap;
+            }
+        } else if (index < items.length) {
+            const rect = items[index].actor.get_transformed_extents();
+            along = vertical
+                ? rect.origin.y - gap / 2
+                : rect.origin.x - gap / 2;
+        } else {
+            const rect = items[items.length - 1].actor.get_transformed_extents();
+            along = vertical
+                ? rect.origin.y + rect.size.height + gap / 2
+                : rect.origin.x + rect.size.width + gap / 2;
+        }
+
+        if (vertical) {
+            const x = rootRect.origin.x + (rootRect.size.width - barSize) / 2;
+            return [Math.round(x), Math.round(along - thickness / 2),
+                Math.round(barSize), thickness];
+        }
+
+        const y = rootRect.origin.y + (rootRect.size.height - barSize) / 2;
+        return [Math.round(along - thickness / 2), Math.round(y),
+            thickness, Math.round(barSize)];
+    }
+
+    _showDropIndicator(index) {
+        if (this._destroyed || !this._root || !this._enabled ||
+            !this._root.visible || !this._canEditFavorites()) {
+            this._hideDropIndicator();
+            return;
+        }
+
+        const rect = this._favoriteSlotRect(index);
+        const indicator = this._createDropIndicator();
+        if (!indicator)
+            return;
+
+        // handleDragOver() se invoca en cada movimiento. Si el índice no
+        // cambia no hay que reiniciar la animación de opacidad: eso la dejaba
+        // congelada a medio fundido.
+        if (this._dropIndicatorIndex === index && indicator.visible &&
+            indicator.opacity > 0)
+            return;
+
+        const wasVisible = indicator.visible && indicator.opacity > 0;
+        indicator.set_size(rect[2], rect[3]);
+        if (wasVisible) {
+            indicator.ease({
+                x: rect[0],
+                y: rect[1],
+                duration: 120,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+            // Si estaba a medio fundido (por ejemplo al volver a entrar en el
+            // dock antes de que terminase el fade-out), retomar la entrada.
+            if (indicator.opacity < 255) {
+                try {
+                    indicator.remove_transition('opacity');
+                } catch (_e) {
+                    // Sin transición previa.
+                }
+                indicator.ease({
+                    opacity: 255,
+                    duration: 120,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                });
+            }
+        } else {
+            try {
+                indicator.remove_transition('opacity');
+            } catch (_e) {
+                // Sin transición previa.
+            }
+            indicator.set_position(rect[0], rect[1]);
+            indicator.opacity = 0;
+            indicator.show();
+            indicator.ease({
+                opacity: 255,
+                duration: 120,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+
+        this._dropIndicatorIndex = index;
+    }
+
+    _hideDropIndicator(animated = true) {
+        this._dropIndicatorIndex = -1;
+        const indicator = this._dropIndicator;
+        if (!indicator)
+            return;
+
+        try {
+            indicator.remove_transition('opacity');
+        } catch (_e) {
+            // Sin transición previa.
+        }
+
+        if (!indicator.visible)
+            return;
+
+        if (!animated) {
+            indicator.opacity = 0;
+            indicator.hide();
+            return;
+        }
+
+        indicator.ease({
+            opacity: 0,
+            duration: 120,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                if (this._dropIndicator === indicator &&
+                    this._dropIndicatorIndex < 0)
+                    indicator.hide();
+            },
+        });
+    }
+
+    _destroyDropIndicator() {
+        const indicator = this._dropIndicator;
+        this._dropIndicator = null;
+        this._dropIndicatorIndex = -1;
+        if (!indicator)
+            return;
+
+        try {
+            indicator.get_parent()?.remove_child(indicator);
+            indicator.destroy();
+        } catch (_e) {
+            // Ya estaba destruido.
+        }
+    }
+
+    handleDragOver(source, _actor, x, y, _time) {
         const app = this._appFromDragSource(source);
-        if (!app || app.is_window_backed?.())
+        if (!app || app.is_window_backed?.() || !this._canEditFavorites() ||
+            this._isOverDockControl(x, y)) {
+            this._hideDropIndicator();
             return DND.DragMotionResult.NO_DROP;
-        if (!this._canEditFavorites())
-            return DND.DragMotionResult.NO_DROP;
+        }
+
+        // El indicador es un actor superpuesto en uiGroup (no un hijo del
+        // BoxLayout), así que no altera la posición de los iconos ni el
+        // índice calculado en acceptDrop().
+        const index = this._favoriteDropIndex(x, y);
+        if (index !== this._dropIndicatorIndex)
+            console.log(`${LOG} drag-over indice=${index} (${Math.round(x)},${Math.round(y)})`);
+        this._showDropIndicator(index);
         return DND.DragMotionResult.MOVE_DROP;
     }
 
     acceptDrop(source, _actor, x, y, _time) {
         const app = this._appFromDragSource(source);
-        if (!app || app.is_window_backed?.() || !this._canEditFavorites())
+        if (!app || app.is_window_backed?.() || !this._canEditFavorites() ||
+            this._isOverDockControl(x, y)) {
+            this._hideDropIndicator(false);
             return false;
+        }
 
-        const position = this._favoriteDropIndex(x, y);
-        this._later(() => this._insertFavorite(app, position));
+        // El índice visual incluye el icono arrastrado. Al quitarlo de la
+        // lista antes de insertarlo hay que compensar si estaba a la
+        // izquierda/arriba del punto de inserción.
+        let position = this._favoriteDropIndex(x, y);
+        const id = app.get_id();
+        const current = this._favoriteAppsList()
+            .findIndex(favorite => favorite.get_id() === id);
+        if (current >= 0 && current < position)
+            position--;
+
+        this._hideDropIndicator(false);
+        this._later(() => {
+            if (!this._destroyed)
+                this._insertFavorite(app, position);
+        });
         return true;
     }
 
@@ -2440,6 +2850,17 @@ export class TahoeDock {
             return;
         this._destroyed = true;
         this._ready = false;
+
+        if (this._dragMonitor) {
+            try {
+                DND.removeDragMonitor(this._dragMonitor);
+            } catch (_e) {
+                // Ya estaba desconectado.
+            }
+            this._dragMonitor = null;
+        }
+        this._dragSession = null;
+        this._destroyDropIndicator();
 
         this._removeReserve();
 

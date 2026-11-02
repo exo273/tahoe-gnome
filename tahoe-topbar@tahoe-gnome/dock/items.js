@@ -10,6 +10,7 @@
 'use strict';
 
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import Graphene from 'gi://Graphene';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
@@ -247,6 +248,20 @@ export class DockItemBase {
     }
 }
 
+class DockDragSource {
+    constructor(item) {
+        this._dockItem = item;
+    }
+
+    getDragActor() {
+        return this._dockItem?.getDragActor();
+    }
+
+    getDragActorSource() {
+        return this._dockItem?.getDragActorSource();
+    }
+}
+
 export class DockAppItem extends DockItemBase {
     constructor(dock, app, {favorite = false} = {}) {
         super(dock, {
@@ -259,6 +274,16 @@ export class DockAppItem extends DockItemBase {
         this.isFavorite = favorite;
         this._windows = [];
         this._draggable = null;
+        this._draggableSignalIds = [];
+        this._dragging = false;
+        this._ignoreClickUntil = 0;
+
+        // DND entrega el _delegate del actor como fuente a todos los targets.
+        // El overview (Workspace.acceptDrop) acepta cualquier fuente con
+        // .app y abre una ventana nueva; este proxy oculta .app al resto del
+        // shell y el dock lo reconoce por _dockItem. Sin él, soltar un
+        // favorito fuera del dock lanzaba la aplicación.
+        this.actor._delegate = new DockDragSource(this);
 
         const iconSize = dock.iconSizePx;
         let icon;
@@ -280,9 +305,7 @@ export class DockAppItem extends DockItemBase {
         if (this.canDrag()) {
             try {
                 this._draggable = DND.makeDraggable(this.actor, {timeoutThreshold: 200});
-                this._draggable.connect('drag-begin', () => {
-                    this._dock._hideTooltip(this);
-                });
+                this._connectDraggable();
             } catch (e) {
                 console.error('[tahoe-dock] No se pudo hacer arrastrable un icono:', e);
                 this._draggable = null;
@@ -290,8 +313,44 @@ export class DockAppItem extends DockItemBase {
         }
     }
 
+    _connectDraggable() {
+        if (!this._draggable)
+            return;
+        this._draggableSignalIds.push(
+            this._draggable.connect('drag-begin', () => {
+                this._dragging = true;
+                this._dock?._hideTooltip?.(this);
+                this._dock?._onItemDragBegin?.(this);
+            }),
+            this._draggable.connect('drag-cancelled', () => {
+                this._dock?._onItemDragCancelled?.(this);
+            }),
+            this._draggable.connect('drag-end', (_draggable, _time, success) => {
+                this._dragging = false;
+                // El botón puede emitir ::clicked después del drag-end (por
+                // ejemplo al soltar fuera del dock): ignorarlo para no
+                // activar/abrir la app al terminar un arrastre.
+                this._ignoreClickUntil = GLib.get_monotonic_time() + 750000;
+                this._dock?._onItemDragEnd?.(this, success);
+            }));
+    }
+
+    _disconnectDraggable() {
+        if (!this._draggable || !this._draggableSignalIds.length)
+            return;
+        for (const id of this._draggableSignalIds) {
+            try {
+                this._draggable.disconnect(id);
+            } catch (_e) {
+                // La señal ya estaba desconectada.
+            }
+        }
+        this._draggableSignalIds = [];
+    }
+
     canDrag() {
-        return !this.app.is_window_backed() && this._dock._canEditFavorites();
+        return !this._destroyed && !this._dock?._destroyed &&
+            !this.app.is_window_backed() && this._dock._canEditFavorites();
     }
 
     getDragActor() {
@@ -310,6 +369,9 @@ export class DockAppItem extends DockItemBase {
     }
 
     onClicked(button) {
+        if (this._dragging || this._dock?._dragSession?.item === this ||
+            GLib.get_monotonic_time() < this._ignoreClickUntil)
+            return;
         if (button === Clutter.BUTTON_SECONDARY) {
             this.openPopup();
             return;
@@ -389,7 +451,10 @@ export class DockAppItem extends DockItemBase {
     }
 
     destroy() {
+        this._dock?._onItemDestroyed?.(this);
+        this._disconnectDraggable();
         this._draggable = null;
+        this._dragging = false;
         super.destroy();
     }
 }
