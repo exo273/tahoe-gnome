@@ -3,30 +3,26 @@
  * Tahoe Nautilus — opción B.
  *
  * La superficie GTK completa es opaca (application-content-opacity = 1.0).
- * El panel de archivos (content-pane / tabview / vistas) y la cabecera son
- * opacos con @view_bg_color: la barra superior comparte exactamente el color
- * del panel para que no quede ningún tramo translúcido entre ambos. Sólo el
- * cuerpo de la barra lateral conserva alfa para que se vea el cristal del
- * compositor que tahoe-topbar coloca debajo de la ventana.
+ * Sólo la cabecera y la barra lateral dejan alfa para que se vea el cristal
+ * del compositor que tahoe-topbar coloca debajo de la ventana. El panel de
+ * archivos (content-pane / tabview / vistas) se fuerza a opaco para que el
+ * texto y las miniaturas no pierdan contraste.
  *
  * La sidebar es además un panel independiente: tiene relleno propio y
- * border-radius 18 px. Su cabecera pinta un rectángulo opaco con la esquina
- * exterior redondeada y el lado interior recto, de modo que la barra superior
- * sea continua a través del split view. La esquina interior superior queda
- * cubierta por esa cabecera; la inferior se rellena con @view_bg_color. Así
- * GTK recorta de verdad el fondo en las esquinas y la curva no es un dibujo
- * simulado.
+ * border-radius 18 px, y su cabecera no pinta un rectángulo opaco encima.
+ * Así GTK recorta de verdad el fondo en las esquinas superior e inferior
+ * derechas (izquierdas en RTL); la curva no es un dibujo simulado.
  *
- * La sidebar y los controles añaden el acabado que el compositor no puede
+ * El cristal de sidebar/cabecera añade el acabado que el compositor no puede
  * dibujar dentro de la ventana: gradiente direccional muy suave, highlight
  * blanco de 1 px, oclusión ambiental interior y un borde neutro de 1 px. Todo
  * son capas de box-shadow/background-image de GTK4; no hay blur CSS.
  *
- * 0.52 es el alfa base recomendado para el cuerpo de la sidebar tras comparar
- * 0.62, 0.55, 0.52 y 0.48 sobre fondos claro, negro y azul Tahoe. 0.62 se lee
- * como velo; 0.48 pierde contraste. El relleno propio de la sidebar añade
- * ~0.09 de alfa de primer plano para que la curva se lea sin subir el velo de
- * la ventana. La cabecera no usa ese alfa: es opaca como el panel de archivos.
+ * 0.52 es el alfa base recomendado tras comparar 0.62, 0.55, 0.52 y 0.48
+ * sobre fondos claro, negro y azul Tahoe. 0.62 se lee como velo; 0.48 pierde
+ * contraste en la cabecera. El relleno propio de la sidebar añade ~0.09 de
+ * alfa de primer plano para que la curva se lea sin subir el velo de la
+ * ventana.
  *
  * Las esquinas interiores de la sidebar rellenan su recorte exterior con
  * @view_bg_color: el gradiente radial inverso pinta sólo la parte de fuera del
@@ -41,8 +37,8 @@
  * override. No se modifican gtk-Dark.css ni gtk-Light.css.
  */
 
-/* Base de la ventana: velo translúcido para el cuerpo de la sidebar. El bloque
- * final pinta la banda superior y las cabeceras opacas encima. */
+/* Base de la ventana: único velo translúcido. La sidebar y las cabeceras
+ * quedan transparentes encima para no apilar alfa. */
 .nautilus-window.background,
 .nautilus-window.background.view,
 .nautilus-window.background.csd {
@@ -102,9 +98,9 @@
   border-left: 1px solid rgba(255, 255, 255, 0.13);
 }
 
-/* Cabeceras: material base de cristal. El bloque final lo sustituye por la
- * superficie opaca @view_bg_color; se mantiene aquí para que el override por
- * orden de cascada sea explícito. */
+/* Cabeceras: mismo material y un canto inferior oscuro que separa la barra
+ * del panel de archivos opaco. El highlight superior es más marcado porque
+ * la luz del cristal llega desde arriba. */
 .nautilus-window headerbar,
 .nautilus-window headerbar:backdrop,
 .nautilus-window .sidebar-pane headerbar,
@@ -123,9 +119,9 @@
     inset 0 -1px 0 rgba(0, 0, 0, 0.26);
 }
 
-/* Base: la cabecera de la sidebar no pinta rectángulo propio para no tapar el
- * fondo redondeado del panel. El bloque final la vuelve opaca y redondea sólo
- * la esquina exterior; la esquina interior queda cubierta por esa superficie. */
+/* La cabecera de la sidebar no pinta su propio rectángulo: así el fondo
+ * redondeado del panel (y su esquina superior derecha) no queda tapado por
+ * un gradiente cuadrado. El material y el highlight los pone .sidebar-pane. */
 .nautilus-window .sidebar-pane headerbar,
 .nautilus-window .sidebar-pane headerbar:backdrop {
   background-color: transparent;
@@ -133,47 +129,28 @@
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.26);
 }
 
-/* Esquinas interiores de la sidebar.
- *
- * La esquina inferior se rellena con @view_bg_color, el mismo color opaco del
- * panel de archivos. El radial inverso pinta sólo la parte exterior del arco
- * de 18 px y deja transparente el interior, así que el cuerpo de la sidebar
- * sigue translúcido. El arco fino de 1 px (blanco al 16 %) dibuja la costura
- * curva y se funde con el canto interior; es la primera capa, encima del
- * relleno.
- *
- * La esquina superior NO se rellena aquí: la cabecera opaca del bloque final
- * cubre por completo ese recorte y evita el cuadro oscuro contra el cristal.
- * No usar box-shadow inset para esto: un inset de 18 px pinta una franja
- * vertical en toda la altura (probado y descartado). El radial en el
- * toolbarview hijo es la única forma CSS de rellenar sólo el recorte exterior
- * del arco.
- *
- * En RTL se espeja: la esquina inferior izquierda usa "circle at top right".
- */
+/* Esquinas interiores opacas. El radial inverso es transparente dentro del
+ * arco y @view_bg_color fuera: pinta exactamente el recorte que el
+ * border-radius de la sidebar deja al descubierto, sin tapar el cristal del
+ * interior. 18px coincide con el radio de .sidebar-pane. En LTR la esquina
+ * interior es la derecha; en RTL es la izquierda. Va en el toolbarview, que
+ * cubre siempre toda la altura de la sidebar (aunque se revele la barra de
+ * progreso) y queda detrás de la cabecera y del scrolledwindow, transparentes. */
 .nautilus-window .sidebar-pane:dir(ltr) > toolbarview {
   background-image:
-    radial-gradient(circle at top left,
-      transparent 17px,
-      rgba(255, 255, 255, 0.16) 17px,
-      rgba(255, 255, 255, 0.16) 18px,
-      transparent 18px),
+    radial-gradient(circle at bottom left, transparent 18px, @view_bg_color 18px),
     radial-gradient(circle at top left, transparent 18px, @view_bg_color 18px);
   background-size: 18px 18px, 18px 18px;
-  background-position: right bottom, right bottom;
+  background-position: right top, right bottom;
   background-repeat: no-repeat, no-repeat;
 }
 
 .nautilus-window .sidebar-pane:dir(rtl) > toolbarview {
   background-image:
-    radial-gradient(circle at top right,
-      transparent 17px,
-      rgba(255, 255, 255, 0.16) 17px,
-      rgba(255, 255, 255, 0.16) 18px,
-      transparent 18px),
+    radial-gradient(circle at bottom right, transparent 18px, @view_bg_color 18px),
     radial-gradient(circle at top right, transparent 18px, @view_bg_color 18px);
   background-size: 18px 18px, 18px 18px;
-  background-position: left bottom, left bottom;
+  background-position: left top, left bottom;
   background-repeat: no-repeat, no-repeat;
 }
 
@@ -184,8 +161,8 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.42);
 }
 
-/* Base: el content-pane es transparente y el tabview de archivos opaco. El
- * bloque final hace opaco todo el panel derecho, cabecera incluida. */
+/* El content-pane contiene la cabecera y el tabview. Debe ser transparente
+ * para que la cabecera vea el cristal, pero el tabview de archivos es opaco. */
 .nautilus-window .content-pane,
 .nautilus-window .content-pane:backdrop {
   background-color: transparent;
@@ -249,243 +226,4 @@
 .nautilus-window .content-pane scrolledwindow > undershoot.top,
 .nautilus-window .content-pane scrolledwindow > undershoot.bottom {
   background: none;
-}
-
-/* ==========================================================================
- * Cabecera opaca (integración final).
- *
- * Estas reglas van al final para que la cascada gane a las reglas de cristal
- * de cabecera/content-pane de arriba. La cabecera comparte el @view_bg_color
- * del panel de archivos; la sidebar conserva su alfa sólo en el cuerpo. Los
- * controles (botones, pathbar, búsqueda, splitbutton) siguen siendo piezas de
- * cristal individuales sobre esa barra opaca.
- * ========================================================================== */
-
-/* Banda opaca de 48 px en el fondo de la ventana. Adw.OverlaySplitView inserta
- * 6 px de margen alrededor de la sidebar (x=6, y=6); sin esta banda, esos 6 px
- * sobre la sidebar seguirían translúcidos. 48 px es la altura real de la
- * headerbar del content-pane; a partir de ahí la ventana mantiene su alfa. */
-.nautilus-window.background,
-.nautilus-window.background.view,
-.nautilus-window.background.csd,
-.nautilus-window.background:backdrop,
-.nautilus-window.background.view:backdrop {
-  background-image: linear-gradient(to bottom,
-    @view_bg_color 0,
-    @view_bg_color 48px,
-    transparent 48px);
-}
-
-/* Panel derecho: cabecera, pestañas y cuerpo comparten la superficie opaca. */
-.nautilus-window .content-pane,
-.nautilus-window .content-pane:backdrop {
-  background-color: @view_bg_color;
-  background-image: none;
-}
-
-/* La headerbar no pinta material propio: hereda el opaco del content-pane y
- * sólo deja una línea inferior de 1 px para separar la barra del contenido. */
-.nautilus-window .content-pane headerbar,
-.nautilus-window .content-pane headerbar:backdrop,
-.nautilus-window headerbar,
-.nautilus-window headerbar:backdrop {
-  background-color: transparent;
-  background-image: none;
-  border: none;
-  box-shadow: inset 0 -1px 0 alpha(@window_fg_color, 0.08);
-}
-
-/* La TabBar ya es opaca por la regla del content-pane; se evita que el tema le
- * añada un segundo fondo translúcido. */
-.nautilus-window .content-pane tabbar,
-.nautilus-window .content-pane tabbar:backdrop {
-  background-color: transparent;
-  background-image: none;
-  box-shadow: none;
-}
-
-/* Cabecera de la sidebar: opaca y con la curva exterior limpia. El lado
- * interior queda recto para que la barra superior sea continua. */
-.nautilus-window .sidebar-pane headerbar,
-.nautilus-window .sidebar-pane headerbar:backdrop {
-  background-color: @view_bg_color;
-  background-image: none;
-  border: none;
-  box-shadow: inset 0 -1px 0 alpha(@window_fg_color, 0.08);
-}
-
-.nautilus-window .sidebar-pane headerbar:dir(ltr) {
-  border-top-left-radius: 18px;
-  border-top-right-radius: 0;
-}
-
-.nautilus-window .sidebar-pane headerbar:dir(rtl) {
-  border-top-left-radius: 0;
-  border-top-right-radius: 18px;
-}
-
-/* El canto de 1 px de la sidebar pasa a @view_bg_color: se funde con la
- * cabecera opaca (sin costura vertical) y en el cuerpo queda un canto limpio
- * del mismo color que el panel de archivos. No cambia el layout. */
-.nautilus-window .sidebar-pane:dir(ltr) {
-  border-right-color: @view_bg_color;
-}
-
-.nautilus-window .sidebar-pane:dir(rtl) {
-  border-left-color: @view_bg_color;
-}
-
-/* Texto de cabecera: sin sombra porque el fondo ya es opaco. El cuerpo de la
- * sidebar conserva la sombra suave del archivo base. */
-.nautilus-window headerbar label,
-.nautilus-window .sidebar-pane headerbar label {
-  text-shadow: none;
-}
-
-.nautilus-window headerbar:backdrop label,
-.nautilus-window .sidebar-pane headerbar:backdrop label {
-  color: alpha(@window_fg_color, 0.72);
-}
-
-/* Controles: cristal individual sobre la barra opaca. Se excluyen los
- * titlebuttons (semáforos) y los botones internos del pathbar, que deben
- * quedar planos dentro de la píldora del pathbar. */
-.nautilus-window headerbar button:not(.close):not(.minimize):not(.maximize):not(.nautilus-path-button),
-.nautilus-window headerbar menubutton > button:not(.nautilus-path-button),
-.nautilus-window headerbar splitbutton > button:not(.nautilus-path-button),
-.nautilus-window headerbar splitbutton > menubutton > button:not(.nautilus-path-button),
-.nautilus-window headerbar stackswitcher > button:not(.nautilus-path-button),
-.nautilus-window headerbar entry,
-.nautilus-window headerbar searchentry,
-.nautilus-window searchbar entry,
-.nautilus-window .nautilus-query-editor {
-  background-color: alpha(@window_fg_color, 0.16);
-  background-image: linear-gradient(to bottom,
-    alpha(@window_fg_color, 0.14) 0%,
-    alpha(@window_fg_color, 0.06) 100%);
-  border: none;
-  border-radius: 12px;
-  box-shadow:
-    inset 0 1px 0 alpha(@window_fg_color, 0.24),
-    inset 0 0 0 1px alpha(@window_fg_color, 0.10),
-    0 1px 2px rgba(0, 0, 0, 0.16);
-}
-
-/* Hover / pressed / checked: mismo material, un poco más de luz. */
-.nautilus-window headerbar button:not(.close):not(.minimize):not(.maximize):not(.nautilus-path-button):hover,
-.nautilus-window headerbar menubutton > button:not(.nautilus-path-button):hover,
-.nautilus-window headerbar splitbutton > button:not(.nautilus-path-button):hover,
-.nautilus-window headerbar splitbutton > menubutton > button:not(.nautilus-path-button):hover,
-.nautilus-window headerbar entry:hover,
-.nautilus-window headerbar searchentry:hover,
-.nautilus-window .nautilus-query-editor:hover {
-  background-color: alpha(@window_fg_color, 0.21);
-  background-image: linear-gradient(to bottom,
-    alpha(@window_fg_color, 0.17) 0%,
-    alpha(@window_fg_color, 0.08) 100%);
-}
-
-.nautilus-window headerbar button:not(.close):not(.minimize):not(.maximize):not(.nautilus-path-button):active,
-.nautilus-window headerbar button:not(.close):not(.minimize):not(.maximize):not(.nautilus-path-button):checked,
-.nautilus-window headerbar menubutton > button:not(.nautilus-path-button):active,
-.nautilus-window headerbar menubutton > button:not(.nautilus-path-button):checked,
-.nautilus-window headerbar splitbutton > button:not(.nautilus-path-button):active,
-.nautilus-window headerbar splitbutton > button:not(.nautilus-path-button):checked,
-.nautilus-window headerbar splitbutton > menubutton > button:not(.nautilus-path-button):active,
-.nautilus-window headerbar splitbutton > menubutton > button:not(.nautilus-path-button):checked {
-  background-color: alpha(@window_fg_color, 0.26);
-  background-image: none;
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.18),
-    inset 0 0 0 1px alpha(@window_fg_color, 0.13);
-}
-
-/* Focus visible: rim más claro, sin cambiar el tamaño. */
-.nautilus-window headerbar button:not(.close):not(.minimize):not(.maximize):focus-visible,
-.nautilus-window headerbar entry:focus-within,
-.nautilus-window headerbar searchentry:focus-within {
-  box-shadow:
-    inset 0 0 0 2px alpha(@accent_color, 0.70),
-    inset 0 1px 0 alpha(@window_fg_color, 0.24),
-    0 1px 2px rgba(0, 0, 0, 0.16);
-}
-
-/* En backdrop el fondo sigue opaco; sólo baja un poco la luz del cristal y el
- * texto. Nunca se vuelve transparente. */
-.nautilus-window headerbar:backdrop button:not(.close):not(.minimize):not(.maximize):not(.nautilus-path-button),
-.nautilus-window headerbar:backdrop menubutton > button:not(.nautilus-path-button),
-.nautilus-window headerbar:backdrop entry,
-.nautilus-window .sidebar-pane headerbar:backdrop button:not(.close):not(.minimize):not(.maximize):not(.nautilus-path-button) {
-  background-color: alpha(@window_fg_color, 0.10);
-  background-image: none;
-  box-shadow:
-    inset 0 1px 0 alpha(@window_fg_color, 0.15),
-    inset 0 0 0 1px alpha(@window_fg_color, 0.07);
-  opacity: 1;
-}
-
-/* Pathbar: una única píldora de cristal; sus botones, planos. */
-.nautilus-window .nautilus-pathbar,
-.nautilus-window .nautilus-pathbar:backdrop {
-  background-color: alpha(@window_fg_color, 0.16);
-  background-image: linear-gradient(to bottom,
-    alpha(@window_fg_color, 0.14) 0%,
-    alpha(@window_fg_color, 0.06) 100%);
-  border: none;
-  border-radius: 12px;
-  box-shadow:
-    inset 0 1px 0 alpha(@window_fg_color, 0.24),
-    inset 0 0 0 1px alpha(@window_fg_color, 0.10),
-    0 1px 2px rgba(0, 0, 0, 0.16);
-}
-
-.nautilus-window .nautilus-pathbar > menubutton,
-.nautilus-window .nautilus-pathbar > menubutton > button,
-.nautilus-window .nautilus-pathbar > scrolledwindow,
-.nautilus-window .nautilus-pathbar > scrolledwindow > viewport,
-.nautilus-window .nautilus-pathbar > scrolledwindow > viewport > box,
-.nautilus-window .nautilus-pathbar #NautilusPathButton,
-.nautilus-window .nautilus-pathbar .nautilus-path-button,
-.nautilus-window headerbar .nautilus-pathbar button {
-  background: none;
-  background-image: none;
-  border: none;
-  box-shadow: none;
-}
-
-.nautilus-window .nautilus-pathbar #NautilusPathButton:hover,
-.nautilus-window .nautilus-pathbar .nautilus-path-button:hover {
-  background-color: alpha(@window_fg_color, 0.11);
-  border-radius: 9px;
-}
-
-/* RTL: los radios de splitbutton y foco se reflejan con :dir(). El splitbutton
- * mantiene un único contorno exterior: mitad izquierda en el botón principal,
- * mitad derecha en el desplegable. */
-.nautilus-window headerbar splitbutton > button:dir(ltr) {
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.nautilus-window headerbar splitbutton > menubutton > button:dir(ltr) {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-top-right-radius: 12px;
-  border-bottom-right-radius: 12px;
-}
-
-.nautilus-window headerbar splitbutton > button:dir(rtl) {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-top-right-radius: 12px;
-  border-bottom-right-radius: 12px;
-}
-
-.nautilus-window headerbar splitbutton > menubutton > button:dir(rtl) {
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
 }
